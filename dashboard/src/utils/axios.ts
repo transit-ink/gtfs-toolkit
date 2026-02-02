@@ -1,7 +1,8 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { BACKEND_HOST } from './constants';
 
 const instance: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:9000',
+  baseURL: BACKEND_HOST,
   headers: {
     'Content-Type': 'application/json',
   },

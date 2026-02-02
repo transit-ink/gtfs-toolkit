@@ -4,11 +4,15 @@
   "description": "Scripts for importing GTFS data into PostgreSQL",
   "main": "import-gtfs.js",
   "scripts": {
-    "import-gtfs": "node import-gtfs.js"
+    "import-gtfs": "node import-gtfs.js",
+    "sanitise-stops": "node sanitise-stops.js",
+    "check-parent-station-distance": "node check-parent-station-distance.js",
+    "create-group": "node create-group.js"
   },
   "dependencies": {
     "pg": "^8.11.3",
     "csv-parse": "^5.5.3",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.0"
   }
 }

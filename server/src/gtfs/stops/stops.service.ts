@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
   PaginatedResponse,
   PaginationParams,
 } from '../../common/interfaces/pagination.interface';
 import { GtfsSearchResponseItem } from '../routes/gtfs.entity';
+import { StopTime } from '../stop_times/stop-time.entity';
+import { Trip } from '../trips/trip.entity';
 import { Stop } from './stop.entity';
 
 @Injectable()
@@ -13,6 +15,11 @@ export class StopsService {
   constructor(
     @InjectRepository(Stop)
     private stopRepository: Repository<Stop>,
+    @InjectRepository(StopTime)
+    private stopTimeRepository: Repository<StopTime>,
+    @InjectRepository(Trip)
+    private tripRepository: Repository<Trip>,
+    private dataSource: DataSource,
   ) {}
 
   async findAll(params?: PaginationParams): Promise<PaginatedResponse<Stop>> {
@@ -57,14 +64,14 @@ export class StopsService {
     return this.stopRepository.find({ where: { stop_id: In(ids) } });
   }
 
-  async create(stop: Stop): Promise<Stop> {
-    const newStop = this.stopRepository.create(stop);
+  async create(stopData: Partial<Stop>): Promise<Stop> {
+    const newStop = this.stopRepository.create(stopData as Stop);
     return this.stopRepository.save(newStop);
   }
 
-  async update(id: string, stop: Stop): Promise<Stop> {
+  async update(id: string, stopData: Partial<Stop>): Promise<Stop> {
     const existingStop = await this.findById(id);
-    const updatedStop = this.stopRepository.merge(existingStop, stop);
+    const updatedStop = this.stopRepository.merge(existingStop, stopData as Stop);
     return this.stopRepository.save(updatedStop);
   }
 
@@ -108,7 +115,8 @@ export class StopsService {
     };
   }
 
-  async search(query: string): Promise<GtfsSearchResponseItem[]> {
+  async search(query: string, minScore?: number): Promise<GtfsSearchResponseItem[]> {
+    const threshold = minScore ?? 0;
     const ql = `
       SELECT
         json_build_object(
@@ -118,15 +126,126 @@ export class StopsService {
           'stop_lon', stops.stop_lon,
           'stop_code', stops.stop_code,
           'stop_desc', stops.stop_desc,
-          'stop_url', stops.stop_url
+          'stop_url', stops.stop_url,
+          'parent_station', stops.parent_station
         ) as stop,
         similarity(stop_name, $1) AS score
       FROM
         stops
+      WHERE
+        similarity(stop_name, $1) > $2
       ORDER BY
         score DESC
       LIMIT 10
     `;
-    return await this.stopRepository.query(ql, [query]);
+    return await this.stopRepository.query(ql, [query, threshold]);
+  }
+
+  async findByIdOrParentStation(stopId: string): Promise<Stop[]> {
+    // First, find the stop to check if it has a parent_station
+    const stop = await this.stopRepository.findOne({ where: { stop_id: stopId } });
+    
+    if (!stop) {
+      return [];
+    }
+
+    // If the stop has a parent_station, use the parent to find all siblings
+    const parentId = stop.parent_station || stopId;
+    
+    // Return the parent and all its children (siblings)
+    return this.stopRepository.find({
+      where: [{ stop_id: parentId }, { parent_station: parentId }],
+    });
+  }
+
+  async findChildStops(parentStopIds: string[]): Promise<Stop[]> {
+    if (parentStopIds.length === 0) {
+      return [];
+    }
+    return this.stopRepository.find({
+      where: { parent_station: In(parentStopIds) },
+    });
+  }
+
+  async findInBounds(
+    minLat: number,
+    maxLat: number,
+    minLon: number,
+    maxLon: number,
+    limit = 100,
+  ): Promise<Stop[]> {
+    return this.stopRepository
+      .createQueryBuilder('stop')
+      .where('stop.stop_lat >= :minLat', { minLat })
+      .andWhere('stop.stop_lat <= :maxLat', { maxLat })
+      .andWhere('stop.stop_lon >= :minLon', { minLon })
+      .andWhere('stop.stop_lon <= :maxLon', { maxLon })
+      .andWhere('(stop.parent_station IS NULL OR stop.parent_station = :empty)', { empty: '' })
+      .orderBy('stop.stop_name', 'ASC')
+      .limit(limit)
+      .getMany();
+  }
+
+  async findAllInBounds(
+    minLat: number,
+    maxLat: number,
+    minLon: number,
+    maxLon: number,
+    limit = 200,
+  ): Promise<Stop[]> {
+    // Fetch all stops (including child stops) within bounds
+    return this.stopRepository
+      .createQueryBuilder('stop')
+      .where('stop.stop_lat >= :minLat', { minLat })
+      .andWhere('stop.stop_lat <= :maxLat', { maxLat })
+      .andWhere('stop.stop_lon >= :minLon', { minLon })
+      .andWhere('stop.stop_lon <= :maxLon', { maxLon })
+      .orderBy('stop.stop_name', 'ASC')
+      .limit(limit)
+      .getMany();
+  }
+
+  async getTripsForStop(stopId: string): Promise<Trip[]> {
+    // Get unique trip IDs from stop_times for this stop
+    const stopTimes = await this.stopTimeRepository.find({
+      where: { stop_id: stopId },
+      select: ['trip_id'],
+    });
+
+    const tripIds = [...new Set(stopTimes.map((st) => st.trip_id))];
+
+    if (tripIds.length === 0) {
+      return [];
+    }
+
+    return this.tripRepository.find({
+      where: { trip_id: In(tripIds) },
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    const stop = await this.findById(id);
+
+    // Use a transaction to ensure data consistency
+    await this.dataSource.transaction(async (manager) => {
+      // Remove stop_times referencing this stop
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(StopTime)
+        .where('stop_id = :id', { id })
+        .execute();
+
+      // Remove parent_station references from child stops
+      await manager
+        .createQueryBuilder()
+        .update(Stop)
+        .set({ parent_station: '' })
+        .where('parent_station = :id', { id })
+        .execute();
+
+      // Delete the stop
+      await manager.remove(stop);
+    });
   }
 }

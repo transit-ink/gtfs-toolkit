@@ -1,18 +1,17 @@
+import { ApiProperty } from '@nestjs/swagger';
+import * as bcrypt from 'bcrypt';
+import { Transform } from 'class-transformer';
 import {
-  Entity,
   Column,
-  PrimaryGeneratedColumn,
   CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import * as bcrypt from 'bcrypt';
 
 export enum UserRole {
-  USER = 'user',
+  EDITOR = 'editor',
   ADMIN = 'admin',
-  SUPER_ADMIN = 'super_admin',
 }
 
 @Entity('users')
@@ -26,21 +25,25 @@ export class User {
   @Transform(({ value }) => value?.trim())
   username: string;
 
-  @ApiProperty({ description: 'Email for the user' })
-  @Column({ unique: true })
+  @ApiProperty({ description: 'Email for the user', required: false })
+  @Column({ type: 'varchar', unique: true, nullable: true })
   @Transform(({ value }) => value?.trim())
-  email: string;
+  email?: string | null;
 
   @Column()
   password: string;
 
   @ApiProperty({ description: 'User roles', enum: UserRole, isArray: true })
-  @Column('enum', { array: true, enum: UserRole, default: [UserRole.USER] })
+  @Column('enum', { array: true, enum: UserRole, default: [UserRole.EDITOR] })
   roles: UserRole[];
 
   @ApiProperty({ description: 'Whether the email is verified' })
   @Column({ default: false })
   isEmailVerified: boolean;
+
+  @ApiProperty({ description: 'Profile URL', required: false })
+  @Column({ nullable: true })
+  profileUrl?: string;
 
   @CreateDateColumn()
   createdAt: Date;

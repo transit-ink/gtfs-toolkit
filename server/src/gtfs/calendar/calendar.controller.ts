@@ -1,24 +1,26 @@
 import {
+  Body,
   Controller,
   Get,
+  Param,
   Post,
   Put,
-  Body,
-  Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../auth/entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
 import { Calendar } from './calendar.entity';
 import { CalendarService } from './calendar.service';
-import { UserRole } from '../../auth/entities/user.entity';
 
 @ApiTags('Calendar')
 @Controller('gtfs/calendar')
@@ -36,6 +38,23 @@ export class CalendarController {
     return this.calendarsService.findAll();
   }
 
+  @Get('bulk')
+  @ApiOperation({ summary: 'Get calendars by service IDs' })
+  @ApiQuery({
+    name: 'ids',
+    required: true,
+    description: 'Comma-separated list of service IDs',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns calendars for the given service IDs',
+    type: [Calendar],
+  })
+  findBulk(@Query('ids') ids: string): Promise<Calendar[]> {
+    const serviceIds = ids.split(',').filter(Boolean);
+    return this.calendarsService.findByIds(serviceIds);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get calendar by service ID' })
   @ApiResponse({
@@ -50,7 +69,7 @@ export class CalendarController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new calendar' })
   @ApiResponse({
@@ -67,7 +86,7 @@ export class CalendarController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update calendar by service ID' })
   @ApiResponse({

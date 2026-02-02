@@ -2,12 +2,16 @@
 
 A suite of Web applications and tools to make working with transit data easier.
 
+This is the source code for applications deployed at https://transit.ink
+
 Main components:
 
 - Backend Server
-- Scripts
+- Tools
 - Dashboard
 - End-user Interface
+
+### Documentation
 
 ### Getting started
 

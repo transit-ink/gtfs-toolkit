@@ -10,6 +10,7 @@ import { Shape } from '../gtfs/shapes/shape.entity';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseConfig } from './configuration';
 import { User } from '../auth/entities/user.entity';
+import { Group } from '../group/group.entity';
 
 export const getDatabaseConfig = (
   configService: ConfigService,
@@ -36,6 +37,7 @@ export const getDatabaseConfig = (
       CalendarDate,
       Shape,
       User,
+      Group,
     ],
     synchronize: process.env.NODE_ENV !== 'production', // Set to false in production
     ssl: {

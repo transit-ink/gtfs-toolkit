@@ -10,12 +10,7 @@ build/
 *.tsbuildinfo
 
 # Environment variables
-.env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
 
 # IDE and editor files
 .idea/
@@ -53,3 +48,5 @@ temp/
 .yarn-integrity
 
 gtfs
+
+server/certificates

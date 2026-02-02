@@ -1,35 +1,37 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import MobileSidebar from './MobileSidebar';
-import Header from './Header';
+import { Separator } from "@/components/ui/separator"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { Outlet } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"
+import { AppSidebar } from "./app-sidebar"
 
-interface LayoutProps {
-  handleLogout: () => void;
-}
+export function Layout() {
+  const { isAuthenticated } = useAuth();
 
-export default function Layout({ handleLogout }: LayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
-
-  return (
-    <div>
-      <MobileSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      {/* Static sidebar for desktop */}
-      <Sidebar />
-
-      <div className="lg:pl-72">
-        <Header
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          handleLogout={handleLogout}
-        />
-        <main className="py-10">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <Outlet />
-          </div>
+  if (!isAuthenticated) {
+    // Layout without sidebar for unauthenticated users
+    return (
+      <div className="min-h-screen">
+        <main className="flex-1 overflow-auto p-4">
+          <Outlet />
         </main>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Layout with sidebar for authenticated users
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <div className="flex-1" />
+        </header>
+        <main className="flex-1 overflow-auto p-4">
+          <Outlet />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }

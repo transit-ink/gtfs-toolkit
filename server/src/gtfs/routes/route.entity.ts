@@ -43,8 +43,8 @@ export class Route {
   route_short_name: string;
 
   @ApiProperty({ description: 'Full name of the route' })
-  @Column()
-  route_long_name: string;
+  @Column({ nullable: true })
+  route_long_name?: string;
 
   @ApiProperty({ description: 'Description of the route' })
   @Column({ nullable: true })

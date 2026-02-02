@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiQuery,
   ApiResponse,
@@ -21,7 +22,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { PaginationParams } from '../../common/interfaces/pagination.interface';
 import { StopTime } from './stop-time.entity';
-import { StopTimesService } from './stop_times.service';
+import { AddStopToTripsDto, BulkUpdateStopTimesDto, RemoveStopFromTripsDto, ReorderStopTimesDto, StopTimesService } from './stop_times.service';
 
 @ApiTags('Stop Times')
 @Controller('gtfs/stop_times')
@@ -128,5 +129,143 @@ export class StopTimesController {
     @Body() stopTime: StopTime,
   ): Promise<StopTime> {
     return this.stopTimesService.update(id, stopTime);
+  }
+
+  @Post('reorder')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reorder stop times for multiple trips' })
+  @ApiBody({
+    description: 'Trip IDs and new stop sequence order',
+    schema: {
+      type: 'object',
+      properties: {
+        tripIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of trip IDs to update',
+        },
+        stopSequence: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              stopId: { type: 'string' },
+              sequence: { type: 'number' },
+            },
+          },
+          description: 'New stop sequence order',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stop times have been successfully reordered.',
+  })
+  reorder(@Body() dto: ReorderStopTimesDto): Promise<{ updated: number }> {
+    return this.stopTimesService.reorderStopTimes(dto);
+  }
+
+  @Post('add-stop')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a stop to multiple trips (at the end)' })
+  @ApiBody({
+    description: 'Trip IDs and stop to add',
+    schema: {
+      type: 'object',
+      properties: {
+        tripIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of trip IDs to add the stop to',
+        },
+        stopId: {
+          type: 'string',
+          description: 'ID of the stop to add',
+        },
+        arrivalTime: {
+          type: 'string',
+          description: 'Arrival time (e.g., "12:00:00")',
+        },
+        departureTime: {
+          type: 'string',
+          description: 'Departure time (e.g., "12:00:00")',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stop has been added to the trips.',
+  })
+  addStop(@Body() dto: AddStopToTripsDto): Promise<{ added: number }> {
+    return this.stopTimesService.addStopToTrips(dto);
+  }
+
+  @Post('remove-stop')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a stop from multiple trips' })
+  @ApiBody({
+    description: 'Trip IDs and stop to remove',
+    schema: {
+      type: 'object',
+      properties: {
+        tripIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of trip IDs to remove the stop from',
+        },
+        stopId: {
+          type: 'string',
+          description: 'ID of the stop to remove',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stop has been removed from the trips.',
+  })
+  removeStop(@Body() dto: RemoveStopFromTripsDto): Promise<{ removed: number }> {
+    return this.stopTimesService.removeStopFromTrips(dto);
+  }
+
+  @Post('bulk-update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Bulk update stop times' })
+  @ApiBody({
+    description: 'Array of stop time updates',
+    schema: {
+      type: 'object',
+      properties: {
+        updates: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              tripId: { type: 'string' },
+              stopId: { type: 'string' },
+              arrivalTime: { type: 'string' },
+              departureTime: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stop times have been successfully updated.',
+  })
+  bulkUpdate(@Body() dto: BulkUpdateStopTimesDto): Promise<{ updated: number }> {
+    return this.stopTimesService.bulkUpdateStopTimes(dto);
   }
 }

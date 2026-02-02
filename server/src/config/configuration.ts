@@ -70,3 +70,41 @@ export const jwtConfig = registerAs('jwt', (): JwtConfig => {
     secret,
   };
 });
+
+export interface WhatsAppConfig {
+  verifyToken: string;
+  accessToken: string;
+  phoneNumberId: string;
+  dashboardAuthToken: string;
+}
+
+export interface OpenAIConfig {
+  apiKey: string;
+  model: string;
+}
+
+export interface UIConfig {
+  baseUrl: string;
+}
+
+export const whatsappConfig = registerAs('whatsapp', (): WhatsAppConfig => {
+  return {
+    verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || '',
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    dashboardAuthToken: process.env.DASHBOARD_AUTH_TOKEN || 'dashboard-secret',
+  };
+});
+
+export const openaiConfig = registerAs('openai', (): OpenAIConfig => {
+  return {
+    apiKey: process.env.OPENAI_API_KEY || '',
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  };
+});
+
+export const uiConfig = registerAs('ui', (): UIConfig => {
+  return {
+    baseUrl: process.env.FRONTEND_HOST || 'http://localhost:3000',
+  };
+});

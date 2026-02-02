@@ -1,18 +1,19 @@
 import {
+  BadRequestException,
   Injectable,
   UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
-import { User, UserRole } from './entities/user.entity';
+import { Repository } from 'typeorm';
+import { CreateUserAdminDto } from './dto/create-user-admin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
-import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import * as crypto from 'crypto';
-import { ConfigService } from '@nestjs/config';
+import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { User, UserRole } from './entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -40,7 +41,7 @@ export class AuthService {
       username,
       email,
       password,
-      roles: [UserRole.USER],
+      roles: [UserRole.EDITOR],
     });
 
     // Hash password
@@ -58,9 +59,9 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<{ token: string }> {
     const { username, password } = loginDto;
 
-    // Find user
+    // Find user by username or email
     const user = await this.userRepository.findOne({
-      where: { username },
+      where: [{ username }, { email: username }],
     });
 
     if (!user) {
@@ -74,11 +75,11 @@ export class AuthService {
     }
 
     // Check if email is verified
-    if (!user.isEmailVerified) {
-      throw new UnauthorizedException(
-        'Your email is not verified. Please reach out to us',
-      );
-    }
+    // if (!user.isEmailVerified) {
+    //   throw new UnauthorizedException(
+    //     'Your email is not verified. Please reach out to us',
+    //   );
+    // }
 
     // Generate token
     const token = this.generateToken(user);
@@ -94,6 +95,191 @@ export class AuthService {
 
     user.roles = roles;
     return this.userRepository.save(user);
+  }
+
+  async getProfile(
+    userId: string,
+  ): Promise<Omit<User, 'password' | 'validatePassword' | 'hashPassword'>> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  }
+
+  async updatePassword(
+    userId: string,
+    updatePasswordDto: UpdatePasswordDto,
+  ): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Validate current password
+    const isValidPassword = await user.validatePassword(
+      updatePasswordDto.currentPassword,
+    );
+    if (!isValidPassword) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Update password
+    user.password = updatePasswordDto.newPassword;
+    await user.hashPassword();
+    await this.userRepository.save(user);
+  }
+
+  async updateProfile(
+    userId: string,
+    updateProfileDto: UpdateProfileDto,
+  ): Promise<Omit<User, 'password' | 'validatePassword' | 'hashPassword'>> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Check if username or email is already taken by another user
+    const existingUser = await this.userRepository.findOne({
+      where: [
+        { username: updateProfileDto.username },
+        { email: updateProfileDto.email },
+      ],
+    });
+
+    if (existingUser && existingUser.id !== userId) {
+      if (existingUser.username === updateProfileDto.username) {
+        throw new BadRequestException('Username already exists');
+      }
+      if (existingUser.email === updateProfileDto.email) {
+        throw new BadRequestException('Email already exists');
+      }
+    }
+
+    // Update username, email, and profileUrl
+    user.username = updateProfileDto.username.trim();
+    user.email = updateProfileDto.email.trim();
+    user.profileUrl = updateProfileDto.profileUrl?.trim();
+
+    const savedUser = await this.userRepository.save(user);
+    const { password, ...userWithoutPassword } = savedUser;
+    return userWithoutPassword;
+  }
+
+  async findAll(): Promise<
+    Omit<User, 'password' | 'validatePassword' | 'hashPassword'>[]
+  > {
+    const users = await this.userRepository.find({
+      order: { username: 'ASC' },
+    });
+    return users.map(
+      ({ password, ...userWithoutPassword }) => userWithoutPassword,
+    );
+  }
+
+  async createUser(
+    createUserDto: CreateUserAdminDto,
+  ): Promise<Omit<User, 'password' | 'validatePassword' | 'hashPassword'>> {
+    const { username, email, password, roles } = createUserDto;
+
+    // Check if user exists
+    const whereConditions: any[] = [{ username }];
+    if (email) {
+      whereConditions.push({ email });
+    }
+    const existingUser = await this.userRepository.findOne({
+      where: whereConditions,
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('Username or email already exists');
+    }
+
+    // Create new user
+    const user = this.userRepository.create({
+      username,
+      email: email || undefined,
+      password,
+      roles: roles || [UserRole.EDITOR],
+    });
+
+    // Hash password
+    await user.hashPassword();
+
+    // Save user
+    await this.userRepository.save(user);
+
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  }
+
+  async updateUser(
+    userId: string,
+    updateUserDto: UpdateUserAdminDto,
+  ): Promise<Omit<User, 'password' | 'validatePassword' | 'hashPassword'>> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Check if username or email is already taken by another user
+    if (updateUserDto.username || (updateUserDto.email !== undefined && updateUserDto.email !== null && updateUserDto.email !== '')) {
+      const whereConditions: any[] = [];
+      if (updateUserDto.username) {
+        whereConditions.push({ username: updateUserDto.username });
+      }
+      if (updateUserDto.email !== undefined && updateUserDto.email !== null && updateUserDto.email !== '') {
+        whereConditions.push({ email: updateUserDto.email });
+      }
+      
+      if (whereConditions.length > 0) {
+        const existingUser = await this.userRepository.findOne({
+          where: whereConditions,
+        });
+
+        if (existingUser && existingUser.id !== userId) {
+          if (
+            updateUserDto.username &&
+            existingUser.username === updateUserDto.username
+          ) {
+            throw new BadRequestException('Username already exists');
+          }
+          if (updateUserDto.email && existingUser.email === updateUserDto.email) {
+            throw new BadRequestException('Email already exists');
+          }
+        }
+      }
+    }
+
+    // Update fields
+    if (updateUserDto.username !== undefined) {
+      user.username = updateUserDto.username.trim();
+    }
+    if (updateUserDto.email !== undefined) {
+      // Convert empty string to null to explicitly clear the email field
+      const emailValue: string | null = updateUserDto.email === '' ? null : updateUserDto.email;
+      (user as any).email = emailValue;
+    }
+    if (updateUserDto.roles !== undefined) {
+      user.roles = updateUserDto.roles;
+    }
+    if (updateUserDto.profileUrl !== undefined) {
+      user.profileUrl = updateUserDto.profileUrl?.trim();
+    }
+
+    const savedUser = await this.userRepository.save(user);
+    const { password, ...userWithoutPassword } = savedUser;
+    return userWithoutPassword;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    await this.userRepository.remove(user);
   }
 
   private generateToken(user: User): string {

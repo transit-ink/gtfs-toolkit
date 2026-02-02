@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DbSyncService } from './db-sync.service';
+import { GtfsExportService } from './gtfs-export.service';
 import { Agency } from '../gtfs/agency/agency.entity';
 import { Stop } from '../gtfs/stops/stop.entity';
 import { Route } from '../gtfs/routes/route.entity';
@@ -25,7 +26,7 @@ import { User } from '../auth/entities/user.entity';
       User,
     ]),
   ],
-  providers: [DbSyncService],
-  exports: [DbSyncService],
+  providers: [DbSyncService, GtfsExportService],
+  exports: [DbSyncService, GtfsExportService],
 })
 export class UtilsModule {}

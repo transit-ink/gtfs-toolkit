@@ -1,14 +1,17 @@
+import * as Sentry from '@sentry/react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import App from './app';
 import './index.css';
-import App from './App.jsx';
+import { currentInstance } from './utils/constants';
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error('Failed to find the root element');
+if (currentInstance.sentryDsn) {
+  Sentry.init({
+    dsn: currentInstance.sentryDsn,
+  });
 }
 
-createRoot(rootElement).render(
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>

@@ -14,8 +14,4 @@ export class AppService implements OnModuleInit {
       throw error;
     }
   }
-
-  getHello(): string {
-    return 'Hello World!';
-  }
 }

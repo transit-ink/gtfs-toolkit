@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiQuery,
   ApiResponse,
@@ -55,6 +57,11 @@ export class TripsController {
     required: false,
     description: 'Filter trips by route ID',
   })
+  @ApiQuery({
+    name: 'routeIds',
+    required: false,
+    description: 'Filter trips by multiple route IDs (comma-separated)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns paginated trips',
@@ -66,6 +73,7 @@ export class TripsController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
     @Query('routeId') routeId?: string,
+    @Query('routeIds') routeIds?: string,
   ) {
     const params: PaginationParams = {
       page: page ? parseInt(page, 10) : undefined,
@@ -73,6 +81,7 @@ export class TripsController {
       sortBy,
       sortOrder,
       routeId,
+      routeIds: routeIds ? routeIds.split(',').filter(Boolean) : undefined,
     };
     return this.tripsService.findAll(params);
   }
@@ -93,14 +102,6 @@ export class TripsController {
     return this.tripsService.findBulk(ids.split(','));
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get trip by ID' })
-  @ApiResponse({ status: 200, description: 'Returns the trip', type: Trip })
-  @ApiResponse({ status: 404, description: 'Trip not found' })
-  findById(@Param('id') id: string): Promise<Trip> {
-    return this.tripsService.findById(id);
-  }
-
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -115,6 +116,52 @@ export class TripsController {
     return this.tripsService.create(trip);
   }
 
+  @Post('duplicate/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Duplicate a trip with incremented stop times' })
+  @ApiBody({
+    description: 'New trip ID and optional time increment in minutes',
+    schema: {
+      type: 'object',
+      properties: {
+        newTripId: {
+          type: 'string',
+          description: 'ID for the new trip',
+        },
+        timeIncrementMinutes: {
+          type: 'number',
+          description: 'Minutes to add to all stop times (default: 5)',
+          default: 5,
+        },
+      },
+      required: ['newTripId'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'The trip has been successfully duplicated.',
+  })
+  duplicate(
+    @Param('id') id: string,
+    @Body() body: { newTripId: string; timeIncrementMinutes?: number },
+  ) {
+    return this.tripsService.duplicateTrip(
+      id,
+      body.newTripId,
+      body.timeIncrementMinutes || 5,
+    );
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get trip by ID' })
+  @ApiResponse({ status: 200, description: 'Returns the trip', type: Trip })
+  @ApiResponse({ status: 404, description: 'Trip not found' })
+  findById(@Param('id') id: string): Promise<Trip> {
+    return this.tripsService.findById(id);
+  }
+
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -127,5 +174,18 @@ export class TripsController {
   })
   update(@Param('id') id: string, @Body() trip: Trip): Promise<Trip> {
     return this.tripsService.update(id, trip);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a trip' })
+  @ApiResponse({
+    status: 200,
+    description: 'The trip has been successfully deleted.',
+  })
+  delete(@Param('id') id: string): Promise<void> {
+    return this.tripsService.delete(id);
   }
 }

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import mapboxgl from "mapbox-gl";
 
 export const useDebouncedValue = <T>(inputValue: T, delay: number): T => {
   const [debouncedValue, setDebouncedValue] = useState<T>(inputValue);
@@ -36,13 +35,3 @@ export const deleteUrlParameter = (paramName: string): URLSearchParams => {
   urlParams.delete(paramName);
   return urlParams;
 };
-
-export const afterMapLoad = (map: mapboxgl.Map, fn: () => void): void => {
-  if (map.loaded()) {
-    fn();
-  } else {
-    map?.on("load", () => {
-      fn();
-    });
-  }
-}; 

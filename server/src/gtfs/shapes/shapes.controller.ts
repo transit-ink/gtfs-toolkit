@@ -1,8 +1,19 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../auth/entities/user.entity';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
 import { PaginationParams } from '../../common/interfaces/pagination.interface';
 import { Shape } from './shape.entity';
-import { ShapesService } from './shapes.service';
+import { ShapesService, UpdateShapeDto } from './shapes.service';
 
 @ApiTags('Shapes')
 @Controller('gtfs/shapes')
@@ -75,5 +86,43 @@ export class ShapesController {
   @ApiResponse({ status: 200, description: 'Return the shapes' })
   findById(@Param('id') id: string): Promise<Shape[]> {
     return this.shapesService.findById(id);
+  }
+
+  @Post('update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update shape points for a shape ID' })
+  @ApiBody({
+    description: 'Shape ID and new points',
+    schema: {
+      type: 'object',
+      properties: {
+        shapeId: {
+          type: 'string',
+          description: 'The shape ID to update',
+        },
+        points: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              lat: { type: 'number' },
+              lon: { type: 'number' },
+              sequence: { type: 'number' },
+              distTraveled: { type: 'number', nullable: true },
+            },
+          },
+          description: 'Array of shape points with coordinates and sequence',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Shape has been successfully updated.',
+  })
+  updateShape(@Body() dto: UpdateShapeDto): Promise<{ updated: number }> {
+    return this.shapesService.updateShape(dto);
   }
 }

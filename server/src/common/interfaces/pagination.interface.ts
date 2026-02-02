@@ -4,6 +4,7 @@ export interface PaginationParams {
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
   routeId?: string;
+  routeIds?: string[];
 }
 
 export interface PaginatedResponse<T> {

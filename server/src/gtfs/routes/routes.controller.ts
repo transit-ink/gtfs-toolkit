@@ -92,6 +92,21 @@ export class RoutesController {
     return this.routesService.findBulk(ids.split(','));
   }
 
+  @Get('search')
+  @ApiOperation({ summary: 'Search routes by short name' })
+  @ApiQuery({
+    name: 'q',
+    required: true,
+    description: 'Search query for route short name',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns matching routes with similarity scores',
+  })
+  search(@Query('q') query: string) {
+    return this.routesService.search(query);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a route by ID' })
   @ApiResponse({ status: 200, description: 'Returns the route', type: Route })
@@ -123,7 +138,7 @@ export class RoutesController {
     description: 'The route has been successfully updated.',
     type: Route,
   })
-  update(@Param('id') id: string, @Body() route: Route): Promise<Route> {
+  update(@Param('id') id: string, @Body() route: Partial<Route>): Promise<Route> {
     return this.routesService.update(id, route);
   }
 }

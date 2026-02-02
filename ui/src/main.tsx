@@ -1,62 +1,37 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import "mapbox-gl/dist/mapbox-gl.css";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import * as Sentry from '@sentry/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './app';
+import './index.css';
+import { initGa } from './utils/analytics';
+import { STALE_TIME_MS } from './utils/api';
+import { currentInstance } from './utils/constants';
 
-import './index.scss';
-import SearchPage from "./search/index";
-import LandingPage from "./landing/index";
-import { ROUTES } from "./utils/constants";
-import AboutPage from "./about/index";
-import AllBusesPage from "./all-buses";
-import FavouritesPage from "./favourites/index";
-import RoutePage from "./route";
-import StopPage from "./stop";
-
-// Define the route configuration type
-type RouteConfig = {
-  path: string;
-  element: React.ReactElement;
-};
-
-const router = createBrowserRouter([
-  {
-    path: ROUTES.home,
-    element: <LandingPage />,
-  },
-  {
-    path: ROUTES.search,
-    element: <SearchPage />
-  },
-  {
-    path: ROUTES.about,
-    element: <AboutPage />
-  },
-  {
-    path: ROUTES.all_buses,
-    element: <AllBusesPage />
-  },
-  {
-    path: ROUTES.favourites,
-    element: <FavouritesPage />
-  },
-  {
-    path: ROUTES.route,
-    element: <RoutePage />
-  },
-  {
-    path: ROUTES.stop,
-    element: <StopPage />
-  },
-] as RouteConfig[]);
-
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error('Failed to find the root element');
+// One GA4 data stream per region: each subdomain uses its stream's measurement ID.
+if (currentInstance.gaMeasurementId) {
+  initGa(currentInstance.gaMeasurementId);
 }
 
-ReactDOM.createRoot(rootElement).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
-); 
+// Sentry error tracking.
+if (currentInstance.sentryDsn) {
+  Sentry.init({
+    dsn: currentInstance.sentryDsn,
+  });
+}
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: STALE_TIME_MS,
+    },
+  },
+});
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </StrictMode>
+);
