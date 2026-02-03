@@ -130,11 +130,20 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={roles.includes('editor')}
-                  onChange={() => handleRoleToggle('editor')}
+                  checked={roles.includes('contributor')}
+                  onChange={() => handleRoleToggle('contributor')}
                   className="w-4 h-4"
                 />
-                <span>Editor</span>
+                <span>Contributor</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={roles.includes('moderator')}
+                  onChange={() => handleRoleToggle('moderator')}
+                  className="w-4 h-4"
+                />
+                <span>Moderator</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

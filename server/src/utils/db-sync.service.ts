@@ -2,6 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { User, UserRole } from '../auth/entities/user.entity';
+import {
+  Changeset,
+  ChangesetStatus,
+} from '../changeset/entities/changeset.entity';
+import {
+  Change,
+  ChangeOperation,
+  EntityType,
+} from '../changeset/entities/change.entity';
 import { Agency } from '../gtfs/agency/agency.entity';
 import { Calendar } from '../gtfs/calendar/calendar.entity';
 import {
@@ -46,6 +55,10 @@ export class DbSyncService {
     private shapeRepository: Repository<Shape>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Changeset)
+    private changesetRepository: Repository<Changeset>,
+    @InjectRepository(Change)
+    private changeRepository: Repository<Change>,
   ) {}
 
   private getColumnDefinitions(
@@ -97,6 +110,10 @@ export class DbSyncService {
     await this.syncShapes();
     await this.syncUsers();
 
+    // Sync changeset tables (must be after users for foreign key)
+    await this.syncChangesets();
+    await this.syncChanges();
+
     this.logger.log('Database synchronization completed');
   }
 
@@ -147,6 +164,19 @@ export class DbSyncService {
         {
           name: 'drop_off_type_enum',
           values: Object.values(DropOffType),
+        },
+        // Changeset enums
+        {
+          name: 'changeset_status_enum',
+          values: Object.values(ChangesetStatus),
+        },
+        {
+          name: 'entity_type_enum',
+          values: Object.values(EntityType),
+        },
+        {
+          name: 'change_operation_enum',
+          values: Object.values(ChangeOperation),
         },
       ];
 
@@ -225,6 +255,18 @@ export class DbSyncService {
   private async syncUsers(): Promise<void> {
     const tableName = 'users';
     const columns = this.getColumnDefinitions(User);
+    await this.syncTable(tableName, columns);
+  }
+
+  private async syncChangesets(): Promise<void> {
+    const tableName = 'changesets';
+    const columns = this.getColumnDefinitions(Changeset);
+    await this.syncTable(tableName, columns);
+  }
+
+  private async syncChanges(): Promise<void> {
+    const tableName = 'changes';
+    const columns = this.getColumnDefinitions(Change);
     await this.syncTable(tableName, columns);
   }
 

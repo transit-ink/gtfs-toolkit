@@ -16,10 +16,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/entities/user.entity';
+import { User, UserRole } from '../../auth/entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { ChangesetHelperService } from '../../changeset/changeset-helper.service';
+import { EntityType } from '../../changeset/entities/change.entity';
 import { PaginationParams } from '../../common/interfaces/pagination.interface';
 import { Stop } from './stop.entity';
 import { StopsService } from './stops.service';
@@ -27,7 +30,10 @@ import { StopsService } from './stops.service';
 @ApiTags('Stops')
 @Controller('gtfs/stops')
 export class StopsController {
-  constructor(private readonly stopsService: StopsService) {}
+  constructor(
+    private readonly stopsService: StopsService,
+    private readonly changesetHelper: ChangesetHelperService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all stops, optionally filtered' })
@@ -89,16 +95,33 @@ export class StopsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new stop' })
   @ApiResponse({
     status: 201,
-    description: 'The stop has been successfully created.',
+    description: 'The stop has been successfully created (or added to changeset for contributors).',
     type: Stop,
   })
-  create(@Body() stop: Partial<Stop>): Promise<Stop> {
-    return this.stopsService.create(stop);
+  async create(
+    @CurrentUser() user: User,
+    @Body() stop: Partial<Stop>,
+  ): Promise<Stop | { changeset: true; applied: boolean; message: string }> {
+    const result = await this.changesetHelper.handleCreate(
+      user,
+      EntityType.STOP,
+      stop.stop_id || '',
+      stop as Record<string, unknown>,
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      // Return the created stop data
+      return stop as Stop;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Stop creation added to your draft changeset' };
   }
 
   @Get('nearby')
@@ -299,29 +322,67 @@ export class StopsController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a stop' })
   @ApiResponse({
     status: 200,
-    description: 'The stop has been successfully updated.',
+    description: 'The stop has been successfully updated (or added to changeset for contributors).',
     type: Stop,
   })
-  update(@Param('id') id: string, @Body() stop: Partial<Stop>): Promise<Stop> {
-    return this.stopsService.update(id, stop);
+  async update(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() stop: Partial<Stop>,
+  ): Promise<Stop | { changeset: true; applied: boolean; message: string }> {
+    const existingStop = await this.stopsService.findById(id);
+    
+    const result = await this.changesetHelper.handleUpdate(
+      user,
+      EntityType.STOP,
+      id,
+      existingStop as unknown as Record<string, unknown>,
+      { ...existingStop, ...stop } as unknown as Record<string, unknown>,
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return { ...existingStop, ...stop } as Stop;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Stop update added to your draft changeset' };
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a stop' })
   @ApiResponse({
     status: 200,
-    description: 'The stop has been successfully deleted. If it was a parent station, child stops will have their parent_station reference removed.',
+    description: 'The stop has been successfully deleted (or added to changeset for contributors).',
   })
   @ApiResponse({ status: 404, description: 'Stop not found' })
-  delete(@Param('id') id: string): Promise<void> {
-    return this.stopsService.delete(id);
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ): Promise<void | { changeset: true; applied: boolean; message: string }> {
+    const existingStop = await this.stopsService.findById(id);
+
+    const result = await this.changesetHelper.handleDelete(
+      user,
+      EntityType.STOP,
+      id,
+      existingStop as unknown as Record<string, unknown>,
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Stop deletion added to your draft changeset' };
   }
 }

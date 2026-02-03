@@ -15,10 +15,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/entities/user.entity';
+import { User, UserRole } from '../../auth/entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { ChangesetHelperService } from '../../changeset/changeset-helper.service';
+import { EntityType } from '../../changeset/entities/change.entity';
 import { PaginationParams } from '../../common/interfaces/pagination.interface';
 import { Route } from './route.entity';
 import { RoutesService } from './routes.service';
@@ -26,7 +29,10 @@ import { RoutesService } from './routes.service';
 @ApiTags('Routes')
 @Controller('gtfs/routes')
 export class RoutesController {
-  constructor(private readonly routesService: RoutesService) {}
+  constructor(
+    private readonly routesService: RoutesService,
+    private readonly changesetHelper: ChangesetHelperService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all routes, optionally filtered' })
@@ -114,29 +120,66 @@ export class RoutesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new route' })
   @ApiResponse({
     status: 201,
-    description: 'The route has been successfully created.',
+    description: 'The route has been successfully created (or added to changeset for contributors).',
     type: Route,
   })
-  create(@Body() route: Route): Promise<Route> {
-    return this.routesService.create(route);
+  async create(
+    @CurrentUser() user: User,
+    @Body() route: Route,
+  ): Promise<Route | { changeset: true; applied: boolean; message: string }> {
+    const result = await this.changesetHelper.handleCreate(
+      user,
+      EntityType.ROUTE,
+      route.route_id || '',
+      route as unknown as Record<string, unknown>,
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return route;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Route creation added to your draft changeset' };
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a route' })
   @ApiResponse({
     status: 200,
-    description: 'The route has been successfully updated.',
+    description: 'The route has been successfully updated (or added to changeset for contributors).',
     type: Route,
   })
-  update(@Param('id') id: string, @Body() route: Partial<Route>): Promise<Route> {
-    return this.routesService.update(id, route);
+  async update(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() route: Partial<Route>,
+  ): Promise<Route | { changeset: true; applied: boolean; message: string }> {
+    const existingRoute = await this.routesService.findOne(id);
+
+    const result = await this.changesetHelper.handleUpdate(
+      user,
+      EntityType.ROUTE,
+      id,
+      existingRoute as unknown as Record<string, unknown>,
+      { ...existingRoute, ...route } as unknown as Record<string, unknown>,
+      { related_route_id: id },
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return { ...existingRoute, ...route } as Route;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Route update added to your draft changeset' };
   }
 }

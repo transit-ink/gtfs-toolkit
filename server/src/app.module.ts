@@ -17,6 +17,7 @@ import {
   whatsappConfig,
 } from './config/configuration';
 import { getDatabaseConfig } from './config/database.config';
+import { ChangesetModule } from './changeset/changeset.module';
 import { GroupModule } from './group/group.module';
 import { GtfsModule } from './gtfs/gtfs.module';
 import { UtilsModule } from './utils/utils.module';
@@ -48,6 +49,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     }),
     GtfsModule,
     GroupModule,
+    ChangesetModule,
     AuthModule,
     AdminModule,
     UtilsModule,

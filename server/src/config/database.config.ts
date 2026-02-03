@@ -11,6 +11,8 @@ import { ConfigService } from '@nestjs/config';
 import { DatabaseConfig } from './configuration';
 import { User } from '../auth/entities/user.entity';
 import { Group } from '../group/group.entity';
+import { Changeset } from '../changeset/entities/changeset.entity';
+import { Change } from '../changeset/entities/change.entity';
 
 export const getDatabaseConfig = (
   configService: ConfigService,
@@ -38,6 +40,8 @@ export const getDatabaseConfig = (
       Shape,
       User,
       Group,
+      Changeset,
+      Change,
     ],
     synchronize: process.env.NODE_ENV !== 'production', // Set to false in production
     ssl: {

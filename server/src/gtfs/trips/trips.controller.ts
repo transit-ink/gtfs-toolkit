@@ -17,10 +17,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/entities/user.entity';
+import { User, UserRole } from '../../auth/entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { ChangesetHelperService } from '../../changeset/changeset-helper.service';
+import { EntityType } from '../../changeset/entities/change.entity';
 import { PaginationParams } from '../../common/interfaces/pagination.interface';
 import { Trip } from './trip.entity';
 import { TripsService } from './trips.service';
@@ -28,7 +31,10 @@ import { TripsService } from './trips.service';
 @ApiTags('Trips')
 @Controller('gtfs/trips')
 export class TripsController {
-  constructor(private readonly tripsService: TripsService) {}
+  constructor(
+    private readonly tripsService: TripsService,
+    private readonly changesetHelper: ChangesetHelperService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all trips, optionally filtered' })
@@ -102,23 +108,40 @@ export class TripsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new trip' })
   @ApiResponse({
     status: 201,
-    description: 'The trip has been successfully created.',
+    description: 'The trip has been successfully created (or added to changeset for contributors).',
     type: Trip,
   })
-  create(@Body() trip: Trip): Promise<Trip> {
-    return this.tripsService.create(trip);
+  async create(
+    @CurrentUser() user: User,
+    @Body() trip: Trip,
+  ): Promise<Trip | { changeset: true; applied: boolean; message: string }> {
+    const result = await this.changesetHelper.handleCreate(
+      user,
+      EntityType.TRIP,
+      trip.trip_id || '',
+      trip as unknown as Record<string, unknown>,
+      { related_route_id: trip.route_id },
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return trip;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Trip creation added to your draft changeset' };
   }
 
   @Post(':id/duplicate')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Duplicate a trip with incremented stop times' })
+  @ApiOperation({ summary: 'Duplicate a trip with incremented stop times (Moderator/Admin only)' })
   @ApiBody({
     description: 'New trip ID and optional time increment in minutes',
     schema: {
@@ -145,6 +168,7 @@ export class TripsController {
     @Param('id') id: string,
     @Body() body: { newTripId: string; timeIncrementMinutes?: number },
   ) {
+    // Duplicate is a complex operation - only moderators/admins can do it directly
     return this.tripsService.duplicateTrip(
       id,
       body.newTripId,
@@ -162,28 +186,68 @@ export class TripsController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a trip' })
   @ApiResponse({
     status: 200,
-    description: 'The trip has been successfully updated.',
+    description: 'The trip has been successfully updated (or added to changeset for contributors).',
     type: Trip,
   })
-  update(@Param('id') id: string, @Body() trip: Trip): Promise<Trip> {
-    return this.tripsService.update(id, trip);
+  async update(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() trip: Trip,
+  ): Promise<Trip | { changeset: true; applied: boolean; message: string }> {
+    const existingTrip = await this.tripsService.findById(id);
+
+    const result = await this.changesetHelper.handleUpdate(
+      user,
+      EntityType.TRIP,
+      id,
+      existingTrip as unknown as Record<string, unknown>,
+      { ...existingTrip, ...trip } as unknown as Record<string, unknown>,
+      { related_route_id: existingTrip.route_id },
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return { ...existingTrip, ...trip } as Trip;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Trip update added to your draft changeset' };
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a trip' })
   @ApiResponse({
     status: 200,
-    description: 'The trip has been successfully deleted.',
+    description: 'The trip has been successfully deleted (or added to changeset for contributors).',
   })
-  delete(@Param('id') id: string): Promise<void> {
-    return this.tripsService.delete(id);
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ): Promise<void | { changeset: true; applied: boolean; message: string }> {
+    const existingTrip = await this.tripsService.findById(id);
+
+    const result = await this.changesetHelper.handleDelete(
+      user,
+      EntityType.TRIP,
+      id,
+      existingTrip as unknown as Record<string, unknown>,
+      { related_route_id: existingTrip.route_id },
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Trip deletion added to your draft changeset' };
   }
 }

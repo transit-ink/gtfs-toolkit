@@ -16,10 +16,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/entities/user.entity';
+import { User, UserRole } from '../../auth/entities/user.entity';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { ChangesetHelperService } from '../../changeset/changeset-helper.service';
+import { EntityType } from '../../changeset/entities/change.entity';
 import { PaginationParams } from '../../common/interfaces/pagination.interface';
 import { StopTime } from './stop-time.entity';
 import { AddStopToTripsDto, BulkUpdateStopTimesDto, RemoveStopFromTripsDto, ReorderStopTimesDto, StopTimesService } from './stop_times.service';
@@ -27,7 +30,10 @@ import { AddStopToTripsDto, BulkUpdateStopTimesDto, RemoveStopFromTripsDto, Reor
 @ApiTags('Stop Times')
 @Controller('gtfs/stop_times')
 export class StopTimesController {
-  constructor(private readonly stopTimesService: StopTimesService) {}
+  constructor(
+    private readonly stopTimesService: StopTimesService,
+    private readonly changesetHelper: ChangesetHelperService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all stop times' })
@@ -102,40 +108,81 @@ export class StopTimesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new stop time' })
   @ApiResponse({
     status: 201,
-    description: 'The stop time has been successfully created.',
+    description: 'The stop time has been successfully created (or added to changeset for contributors).',
     type: StopTime,
   })
-  create(@Body() stopTime: StopTime): Promise<StopTime> {
-    return this.stopTimesService.create(stopTime);
+  async create(
+    @CurrentUser() user: User,
+    @Body() stopTime: StopTime,
+  ): Promise<StopTime | { changeset: true; applied: boolean; message: string }> {
+    const result = await this.changesetHelper.handleCreate(
+      user,
+      EntityType.STOP_TIME,
+      `${stopTime.trip_id}_${stopTime.stop_id}_${stopTime.stop_sequence}`,
+      stopTime as unknown as Record<string, unknown>,
+      {
+        related_trip_id: stopTime.trip_id,
+        related_stop_id: stopTime.stop_id,
+      },
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return stopTime;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Stop time creation added to your draft changeset' };
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a stop time' })
   @ApiResponse({
     status: 200,
-    description: 'The stop time has been successfully updated.',
+    description: 'The stop time has been successfully updated (or added to changeset for contributors).',
     type: StopTime,
   })
-  update(
+  async update(
     @Param('id') id: string,
+    @CurrentUser() user: User,
     @Body() stopTime: StopTime,
-  ): Promise<StopTime> {
-    return this.stopTimesService.update(id, stopTime);
+  ): Promise<StopTime | { changeset: true; applied: boolean; message: string }> {
+    const existingStopTime = await this.stopTimesService.findOne(id);
+
+    const result = await this.changesetHelper.handleUpdate(
+      user,
+      EntityType.STOP_TIME,
+      id,
+      existingStopTime as unknown as Record<string, unknown>,
+      { ...existingStopTime, ...stopTime } as unknown as Record<string, unknown>,
+      {
+        related_trip_id: existingStopTime.trip_id,
+        related_stop_id: existingStopTime.stop_id,
+      },
+    );
+
+    if (result.applied) {
+      // Moderator/admin - change was auto-approved and applied
+      return { ...existingStopTime, ...stopTime } as StopTime;
+    }
+
+    // Contributor - change added to draft changeset
+    return { changeset: true, applied: false, message: 'Stop time update added to your draft changeset' };
   }
 
   @Post('reorder')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reorder stop times for multiple trips' })
+  @ApiOperation({ summary: 'Reorder stop times for multiple trips (Moderator/Admin only)' })
   @ApiBody({
     description: 'Trip IDs and new stop sequence order',
     schema: {
@@ -170,9 +217,9 @@ export class StopTimesController {
 
   @Post('add-stop')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Add a stop to multiple trips (at the end)' })
+  @ApiOperation({ summary: 'Add a stop to multiple trips (Moderator/Admin only)' })
   @ApiBody({
     description: 'Trip IDs and stop to add',
     schema: {
@@ -208,9 +255,9 @@ export class StopTimesController {
 
   @Post('remove-stop')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Remove a stop from multiple trips' })
+  @ApiOperation({ summary: 'Remove a stop from multiple trips (Moderator/Admin only)' })
   @ApiBody({
     description: 'Trip IDs and stop to remove',
     schema: {
@@ -238,7 +285,7 @@ export class StopTimesController {
 
   @Post('bulk-update')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.CONTRIBUTOR, UserRole.MODERATOR, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Bulk update stop times' })
   @ApiBody({
@@ -263,9 +310,64 @@ export class StopTimesController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Stop times have been successfully updated.',
+    description: 'Stop times have been successfully updated (or added to changeset for contributors).',
   })
-  bulkUpdate(@Body() dto: BulkUpdateStopTimesDto): Promise<{ updated: number }> {
-    return this.stopTimesService.bulkUpdateStopTimes(dto);
+  async bulkUpdate(
+    @CurrentUser() user: User,
+    @Body() dto: BulkUpdateStopTimesDto,
+  ): Promise<{ updated: number } | { changeset: true; applied: boolean; message: string; count: number }> {
+    const { updates } = dto;
+
+    if (updates.length === 0) {
+      return { updated: 0 };
+    }
+
+    // For contributors: add each update to their changeset
+    // For moderators/admins: create auto-approved changeset and apply
+    const canSelfApprove = this.changesetHelper.canSelfApprove(user);
+
+    if (canSelfApprove) {
+      // Moderator/admin: apply directly with auto-approved changeset per update
+      // Use the service directly for efficiency, but we still have audit trail from individual updates
+      return this.stopTimesService.bulkUpdateStopTimes(dto);
+    }
+
+    // Contributor: add each update to their draft changeset
+    let addedCount = 0;
+    for (const update of updates) {
+      // Get existing stop time
+      const existingStopTime = await this.stopTimesService.findByTripAndStop(
+        update.tripId,
+        update.stopId,
+      );
+
+      if (existingStopTime) {
+        const newData = {
+          ...existingStopTime,
+          arrival_time: update.arrivalTime ?? existingStopTime.arrival_time,
+          departure_time: update.departureTime ?? existingStopTime.departure_time,
+        };
+
+        await this.changesetHelper.handleUpdate(
+          user,
+          EntityType.STOP_TIME,
+          String(existingStopTime.id),
+          existingStopTime as unknown as Record<string, unknown>,
+          newData as unknown as Record<string, unknown>,
+          {
+            related_trip_id: update.tripId,
+            related_stop_id: update.stopId,
+          },
+        );
+        addedCount++;
+      }
+    }
+
+    return {
+      changeset: true,
+      applied: false,
+      message: `${addedCount} stop time update(s) added to your draft changeset`,
+      count: addedCount,
+    };
   }
 }

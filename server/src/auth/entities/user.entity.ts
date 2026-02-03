@@ -10,8 +10,9 @@ import {
 } from 'typeorm';
 
 export enum UserRole {
-  EDITOR = 'editor',
-  ADMIN = 'admin',
+  CONTRIBUTOR = 'contributor', // Can propose changes via changesets
+  MODERATOR = 'moderator', // Can approve/reject changesets
+  ADMIN = 'admin', // Can manage users and roles
 }
 
 @Entity('users')
@@ -34,7 +35,7 @@ export class User {
   password: string;
 
   @ApiProperty({ description: 'User roles', enum: UserRole, isArray: true })
-  @Column('enum', { array: true, enum: UserRole, default: [UserRole.EDITOR] })
+  @Column('enum', { array: true, enum: UserRole, default: [UserRole.CONTRIBUTOR] })
   roles: UserRole[];
 
   @ApiProperty({ description: 'Whether the email is verified' })

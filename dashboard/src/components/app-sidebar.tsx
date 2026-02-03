@@ -3,6 +3,7 @@ import {
   Book,
   Bus,
   CalendarDays,
+  ClipboardCheck,
   Layers,
   LogOut,
   MapPin,
@@ -41,6 +42,7 @@ type NavItem = {
   url: string;
   icon: ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  moderatorOnly?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -50,6 +52,7 @@ const navItems: NavItem[] = [
   { title: 'Groups', url: '/groups', icon: Layers },
   { title: 'Chat', url: '/chat', icon: MessageSquare },
   { title: 'Documentation', url: '/docs', icon: Book },
+  { title: 'Review', url: '/review', icon: ClipboardCheck, moderatorOnly: true },
   { title: 'Admin', url: '/admin', icon: Shield, adminOnly: true },
 ];
 
@@ -79,7 +82,13 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const isAdmin = user?.roles?.includes('admin') ?? false;
-  const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const isModerator = user?.roles?.includes('moderator') ?? false;
+  const canReview = isAdmin || isModerator;
+  const visibleNavItems = navItems.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.moderatorOnly && !canReview) return false;
+    return true;
+  });
 
   const handleLogout = () => {
     logout();

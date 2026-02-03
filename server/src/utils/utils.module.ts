@@ -11,6 +11,8 @@ import { Calendar } from '../gtfs/calendar/calendar.entity';
 import { CalendarDate } from '../gtfs/calendar_dates/calendar-date.entity';
 import { Shape } from '../gtfs/shapes/shape.entity';
 import { User } from '../auth/entities/user.entity';
+import { Changeset } from '../changeset/entities/changeset.entity';
+import { Change } from '../changeset/entities/change.entity';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { User } from '../auth/entities/user.entity';
       CalendarDate,
       Shape,
       User,
+      Changeset,
+      Change,
     ]),
   ],
   providers: [DbSyncService, GtfsExportService],

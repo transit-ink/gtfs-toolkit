@@ -2,6 +2,7 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-d
 import { Layout } from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
+import { ChangesetProvider } from './context/ChangesetContext';
 import AccountPage from './pages/account';
 import AdminPage from './pages/admin';
 import CalendarPage from './pages/calendar';
@@ -10,6 +11,7 @@ import Documentation from './pages/docs';
 import GroupDetails from './pages/groupDetails';
 import Groups from './pages/groups';
 import Login from './pages/login';
+import ReviewPage from './pages/review';
 import RouteDetails from './pages/routeDetails';
 import RoutesPage from './pages/routes';
 import Stops from './pages/stops';
@@ -39,6 +41,7 @@ function AppContent() {
           <Route path="groups" element={<Groups />} />
           <Route path="groups/:groupId" element={<GroupDetails />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="review" element={<ReviewPage />} />
           <Route path="trips" element={<ComingSoon title="Trips" />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="account" element={<AccountPage />} />
@@ -61,7 +64,9 @@ function ComingSoon({ title }: { title: string }) {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ChangesetProvider>
+        <AppContent />
+      </ChangesetProvider>
     </AuthProvider>
   );
 }

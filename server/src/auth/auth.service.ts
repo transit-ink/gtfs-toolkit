@@ -45,7 +45,7 @@ export class AuthService {
       username,
       email,
       password,
-      roles: [UserRole.EDITOR],
+      roles: [UserRole.CONTRIBUTOR],
     });
 
     // Hash password
@@ -231,7 +231,7 @@ export class AuthService {
       username,
       email: email || undefined,
       password,
-      roles: roles || [UserRole.EDITOR],
+      roles: roles || [UserRole.CONTRIBUTOR],
     });
 
     // Hash password

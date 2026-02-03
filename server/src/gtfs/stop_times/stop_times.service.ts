@@ -96,6 +96,13 @@ export class StopTimesService {
     return stopTime;
   }
 
+  async findByTripAndStop(tripId: string, stopId: string): Promise<StopTime | null> {
+    return this.stopTimesRepository.findOneBy({
+      trip_id: tripId,
+      stop_id: stopId,
+    });
+  }
+
   async create(stopTime: StopTime): Promise<StopTime> {
     const newStopTime = this.stopTimesRepository.create(stopTime);
     return this.stopTimesRepository.save(newStopTime);
