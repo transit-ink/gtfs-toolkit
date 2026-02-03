@@ -3,7 +3,8 @@ import { deleteTrip, duplicateTrip } from '@/services/routes';
 import { Stop } from '@/types/gtfs';
 import { AxiosError } from 'axios';
 import { Clock, MapPin, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StopHeader, StopRow, TripColumn } from './components';
 import { DeleteTripDialog } from './deleteTripDialog';
 import { PendingStopChange, TimetableData } from './types';
@@ -76,10 +77,8 @@ function TimetableStopRow({
   const isFirst = index === 0;
   const isLast = index === stopSequenceLength - 1;
   const isDragging = draggedIndex === index;
-  const isDropAbove =
-    dropTarget?.index === index && dropTarget.position === 'above';
-  const isDropBelow =
-    dropTarget?.index === index && dropTarget.position === 'below';
+  const isDropAbove = dropTarget?.index === index && dropTarget.position === 'above';
+  const isDropBelow = dropTarget?.index === index && dropTarget.position === 'below';
   const isPendingAdd = pendingAddIds.has(stopId);
   const isPendingRemove = pendingRemoveIds.has(stopId);
 
@@ -211,6 +210,34 @@ export function TimetableSection({
     null
   );
   const dragNodeRef = useRef<HTMLDivElement | null>(null);
+  const horizontalScrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewportWidth, setViewportWidth] = useState<number>(600);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  useEffect(() => {
+    const el = horizontalScrollRef.current;
+    if (!el) return;
+
+    const handleResize = () => {
+      setViewportWidth(el.clientWidth || 600);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  const handleHorizontalScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    setScrollLeft(target.scrollLeft);
+
+    if (target.clientWidth !== viewportWidth) {
+      setViewportWidth(target.clientWidth);
+    }
+  };
 
   // Drag handlers - only enable when in stops edit mode
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
@@ -289,6 +316,22 @@ export function TimetableSection({
     setDropTarget(null);
   };
 
+  const totalStops = timetableData.stopSequence.length;
+  const totalTrips = timetableData.trips.length;
+  const columnWidth = timingsEditMode ? 140 : 70; // px, matches min-w-[140px]/min-w-[70px]
+  const horizontalOverscan = 3;
+
+  const maxVisibleTrips = Math.ceil((viewportWidth || 1) / columnWidth) + horizontalOverscan * 2;
+  const startTripIndex = Math.max(
+    0,
+    Math.floor((scrollLeft || 0) / columnWidth) - horizontalOverscan
+  );
+  const endTripIndex = Math.min(totalTrips, startTripIndex + maxVisibleTrips);
+
+  const visibleTrips = timetableData.trips.slice(startTripIndex, endTripIndex);
+  const leftSpacerWidth = startTripIndex * columnWidth;
+  const rightSpacerWidth = (totalTrips - endTripIndex) * columnWidth;
+
   return (
     <>
       <div className="space-y-3">
@@ -359,62 +402,77 @@ export function TimetableSection({
           </div>
         )}
 
-        <div className="overflow-x-auto -mx-4">
-          <div className="min-w-max flex pr-4">
-            {/* Fixed left column - stops */}
-            <div className="sticky left-0 z-10 bg-card border-r">
-              <StopHeader
-                timingsEditMode={timingsEditMode}
-                stopSequence={timetableData.stopSequence}
-                adjustRowTime={adjustRowTime}
-              />
-              <div className="relative">
-                {/* Route line */}
-                <div className="absolute left-[37px] top-3 bottom-3 w-0.5 bg-primary/30" />
-
-                {timetableData.stopSequence.map((stopId, index) => (
-                  <TimetableStopRow
-                    key={`stop-${stopId}-${index}`}
-                    stopId={stopId}
-                    index={index}
-                    stopSequenceLength={timetableData.stopSequence.length}
-                    stops={stops}
-                    draggedIndex={draggedIndex}
-                    dropTarget={dropTarget}
-                    pendingAddIds={pendingAddIds}
-                    pendingRemoveIds={pendingRemoveIds}
-                    stopEditMode={stopEditMode}
-                    onReorderStops={onReorderStops}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    timingsEditMode={timingsEditMode}
-                    adjustRowTime={adjustRowTime}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Scrollable trip columns */}
+        <div className="-mx-4">
+          <div className="max-h-[480px] overflow-y-auto">
             <div className="flex">
-              {timetableData.trips.map((trip, tripIndex) => (
-                <TripColumn
-                  key={trip.tripId}
-                  tripId={trip.tripId}
-                  tripIndex={tripIndex}
-                  stopSequence={timetableData.stopSequence}
+              {/* Fixed left column - stops (no horizontal scroll) */}
+              <div className="bg-card border-r sticky left-0 z-10">
+                <StopHeader
                   timingsEditMode={timingsEditMode}
-                  getDisplayTime={getDisplayTime}
-                  updateTripTime={updateTripTime}
-                  adjustColumnTime={adjustColumnTime}
-                  onDeleteTrip={(tripId, tripNumber) => {
-                    setTripToDelete({ tripId, tripNumber });
-                    setDeleteDialogOpen(true);
-                  }}
+                  stopSequence={timetableData.stopSequence}
+                  adjustRowTime={adjustRowTime}
                 />
-              ))}
+                <div className="relative">
+                  {/* Route line */}
+                  <div className="absolute left-[37px] top-3 bottom-3 w-0.5 bg-primary/30" />
+
+                  {timetableData.stopSequence.map((stopId, index) => (
+                    <TimetableStopRow
+                      key={`stop-${stopId}-${index}`}
+                      stopId={stopId}
+                      index={index}
+                      stopSequenceLength={totalStops}
+                      stops={stops}
+                      draggedIndex={draggedIndex}
+                      dropTarget={dropTarget}
+                      pendingAddIds={pendingAddIds}
+                      pendingRemoveIds={pendingRemoveIds}
+                      stopEditMode={stopEditMode}
+                      onReorderStops={onReorderStops}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      timingsEditMode={timingsEditMode}
+                      adjustRowTime={adjustRowTime}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Scrollable trip columns (horizontally virtualized) */}
+              <div
+                className="flex-1 overflow-x-auto"
+                ref={horizontalScrollRef}
+                onScroll={handleHorizontalScroll}
+              >
+                <div className="min-w-max pr-4">
+                  <div className="flex">
+                    {leftSpacerWidth > 0 && <div style={{ width: leftSpacerWidth }} />}
+                    {visibleTrips.map((trip, index) => {
+                      const tripIndex = startTripIndex + index;
+                      return (
+                        <TripColumn
+                          key={trip.tripId}
+                          tripId={trip.tripId}
+                          tripIndex={tripIndex}
+                          stopSequence={timetableData.stopSequence}
+                          timingsEditMode={timingsEditMode}
+                          getDisplayTime={getDisplayTime}
+                          updateTripTime={updateTripTime}
+                          adjustColumnTime={adjustColumnTime}
+                          onDeleteTrip={(tripId, tripNumber) => {
+                            setTripToDelete({ tripId, tripNumber });
+                            setDeleteDialogOpen(true);
+                          }}
+                        />
+                      );
+                    })}
+                    {rightSpacerWidth > 0 && <div style={{ width: rightSpacerWidth }} />}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

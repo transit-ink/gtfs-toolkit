@@ -37,12 +37,14 @@ export class Trip {
   trip_id: string;
 
   @ApiProperty({ description: 'ID of the route that this trip belongs to' })
+  @Index('idx_trips_route_id')
   @Column()
   route_id: string;
 
   @ApiProperty({
     description: 'ID of the calendar service that specifies when the trip runs',
   })
+  @Index('idx_trips_service_id')
   @Column()
   service_id: string;
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -21,7 +21,7 @@ export class ShapesController {
   constructor(private readonly shapesService: ShapesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all shapes' })
+  @ApiOperation({ summary: 'Get all shapes, optionally filtered' })
   @ApiQuery({
     name: 'page',
     required: false,
@@ -42,9 +42,15 @@ export class ShapesController {
     required: false,
     description: 'Sort order (ASC or DESC, default: ASC)',
   })
+  @ApiQuery({
+    name: 'ids',
+    required: false,
+    description: 'Optional comma-separated list of shape IDs to fetch in bulk',
+    type: String,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns paginated shapes',
+    description: 'Returns paginated shapes, or all shapes matching the provided IDs',
     type: [Shape],
   })
   findAll(
@@ -52,7 +58,16 @@ export class ShapesController {
     @Query('limit') limit?: number,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
+    @Query('ids') ids?: string,
   ) {
+    if (ids) {
+      const shapeIds = ids
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      return this.shapesService.findByIds(shapeIds);
+    }
+
     const params: PaginationParams = {
       page,
       limit,
@@ -62,25 +77,6 @@ export class ShapesController {
     return this.shapesService.findAll(params);
   }
 
-  @Get('bulk')
-  @ApiOperation({ summary: 'Get shapes by multiple IDs' })
-  @ApiQuery({
-    name: 'ids',
-    required: true,
-    description: 'Comma-separated list of shape IDs',
-    type: String,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns shapes matching the provided IDs',
-    type: [Shape],
-  })
-  async findByIds(@Query('ids') ids: string): Promise<Shape[]> {
-    const shapeIds = ids.split(',');
-    console.log(shapeIds);
-    return await this.shapesService.findByIds(shapeIds);
-  }
-
   @Get(':id')
   @ApiOperation({ summary: 'Get shapes by ID' })
   @ApiResponse({ status: 200, description: 'Return the shapes' })
@@ -88,20 +84,16 @@ export class ShapesController {
     return this.shapesService.findById(id);
   }
 
-  @Post('update')
+  @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update shape points for a shape ID' })
+  @ApiOperation({ summary: 'Replace shape points for a shape ID' })
   @ApiBody({
-    description: 'Shape ID and new points',
+    description: 'New points for this shape',
     schema: {
       type: 'object',
       properties: {
-        shapeId: {
-          type: 'string',
-          description: 'The shape ID to update',
-        },
         points: {
           type: 'array',
           items: {
@@ -122,7 +114,22 @@ export class ShapesController {
     status: 200,
     description: 'Shape has been successfully updated.',
   })
-  updateShape(@Body() dto: UpdateShapeDto): Promise<{ updated: number }> {
+  updateShape(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      points: {
+        lat: number;
+        lon: number;
+        sequence: number;
+        distTraveled?: number;
+      }[];
+    },
+  ): Promise<{ updated: number }> {
+    const dto: UpdateShapeDto = {
+      shapeId: id,
+      points: body.points,
+    };
     return this.shapesService.updateShape(dto);
   }
 }

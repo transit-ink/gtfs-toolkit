@@ -149,7 +149,7 @@ export const getRouteApi = (id: string): Promise<AxiosResponse<Route>> =>
   api.get(`${BACKEND_HOST}/gtfs/routes/${encodeURIComponent(id)}`);
 
 export const getRoutesBulkApi = (ids: string[]): Promise<AxiosResponse<Route[]>> =>
-  api.get(`${BACKEND_HOST}/gtfs/routes/bulk`, {
+  api.get(`${BACKEND_HOST}/gtfs/routes`, {
     params: { ids: [...ids].sort().join(',') },
   });
 
@@ -180,7 +180,7 @@ export const getTripsBulkApi = async (ids: string[]): Promise<AxiosResponse<Trip
 
   if (sortedIds.length <= BATCH_SIZE) {
     // Single request if within batch size
-    return api.get(`${BACKEND_HOST}/gtfs/trips/bulk`, {
+    return api.get(`${BACKEND_HOST}/gtfs/trips`, {
       params: { ids: sortedIds.join(',') },
     });
   }
@@ -194,7 +194,7 @@ export const getTripsBulkApi = async (ids: string[]): Promise<AxiosResponse<Trip
   // Make all requests in parallel (rate limiter will handle concurrency)
   const responses = await Promise.all(
     batches.map(batch =>
-      api.get(`${BACKEND_HOST}/gtfs/trips/bulk`, {
+      api.get(`${BACKEND_HOST}/gtfs/trips`, {
         params: { ids: batch.join(',') },
       })
     )
@@ -212,7 +212,7 @@ export const getTripsBulkApi = async (ids: string[]): Promise<AxiosResponse<Trip
 };
 
 export const getShapesBulkApi = (ids: string[]): Promise<AxiosResponse<Shape[]>> =>
-  api.get(`${BACKEND_HOST}/gtfs/shapes/bulk`, {
+  api.get(`${BACKEND_HOST}/gtfs/shapes`, {
     params: { ids: [...ids].sort().join(',') },
   });
 
@@ -220,7 +220,7 @@ export const getStopApi = (id: string): Promise<AxiosResponse<Stop>> =>
   api.get(`${BACKEND_HOST}/gtfs/stops/${encodeURIComponent(id)}`);
 
 export const getStopsBulkApi = (ids: string[]): Promise<AxiosResponse<Stop[]>> =>
-  api.get(`${BACKEND_HOST}/gtfs/stops/bulk`, {
+  api.get(`${BACKEND_HOST}/gtfs/stops`, {
     params: { ids: [...ids].sort().join(',') },
   });
 
@@ -449,7 +449,7 @@ export const getGroupApi = (groupId: string): Promise<AxiosResponse<Group>> =>
   api.get(`${BACKEND_HOST}/groups/${groupId}`);
 
 export const getGroupsBulkApi = (groupIds: string[]): Promise<AxiosResponse<Group[]>> =>
-  api.get(`${BACKEND_HOST}/groups/bulk`, {
+  api.get(`${BACKEND_HOST}/groups`, {
     params: { ids: [...groupIds].sort().join(',') },
   });
 

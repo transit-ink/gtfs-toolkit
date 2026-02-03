@@ -206,21 +206,15 @@ export class StopsService {
   }
 
   async getTripsForStop(stopId: string): Promise<Trip[]> {
-    // Get unique trip IDs from stop_times for this stop
-    const stopTimes = await this.stopTimeRepository.find({
-      where: { stop_id: stopId },
-      select: ['trip_id'],
-    });
+    // Use a single JOIN-based query to fetch trips that have this stop
+    const trips = await this.tripRepository
+      .createQueryBuilder('trip')
+      .innerJoin(StopTime, 'st', 'st.trip_id = trip.trip_id')
+      .where('st.stop_id = :stopId', { stopId })
+      .distinct(true)
+      .getMany();
 
-    const tripIds = [...new Set(stopTimes.map((st) => st.trip_id))];
-
-    if (tripIds.length === 0) {
-      return [];
-    }
-
-    return this.tripRepository.find({
-      where: { trip_id: In(tripIds) },
-    });
+    return trips;
   }
 
   async delete(id: string): Promise<void> {

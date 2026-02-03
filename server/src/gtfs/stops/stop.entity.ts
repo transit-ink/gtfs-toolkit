@@ -22,6 +22,8 @@ export enum WheelchairBoarding {
   NOT_POSSIBLE = 2,
 }
 
+@Index('idx_stops_lat_lon', ['stop_lat', 'stop_lon'])
+@Index('idx_stops_parent_station', ['parent_station'])
 @Entity('stops')
 export class Stop {
   @PrimaryGeneratedColumn()

@@ -31,7 +31,7 @@ export class TripsController {
   constructor(private readonly tripsService: TripsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all trips' })
+  @ApiOperation({ summary: 'Get all trips, optionally filtered' })
   @ApiQuery({
     name: 'page',
     required: false,
@@ -53,6 +53,11 @@ export class TripsController {
     description: 'Sort order (ASC or DESC, default: ASC)',
   })
   @ApiQuery({
+    name: 'ids',
+    required: false,
+    description: 'Optional comma-separated list of trip IDs to fetch in bulk',
+  })
+  @ApiQuery({
     name: 'routeId',
     required: false,
     description: 'Filter trips by route ID',
@@ -64,7 +69,7 @@ export class TripsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns paginated trips',
+    description: 'Returns paginated trips or all trips matching the provided IDs',
     type: [Trip],
   })
   findAll(
@@ -74,7 +79,16 @@ export class TripsController {
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
     @Query('routeId') routeId?: string,
     @Query('routeIds') routeIds?: string,
+    @Query('ids') ids?: string,
   ) {
+    if (ids) {
+      const tripIds = ids
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      return this.tripsService.findBulk(tripIds);
+    }
+
     const params: PaginationParams = {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -84,22 +98,6 @@ export class TripsController {
       routeIds: routeIds ? routeIds.split(',').filter(Boolean) : undefined,
     };
     return this.tripsService.findAll(params);
-  }
-
-  @Get('bulk')
-  @ApiOperation({ summary: 'Get trips by IDs' })
-  @ApiQuery({
-    name: 'ids',
-    required: true,
-    description: 'Comma-separated list of trip IDs',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the trips',
-    type: [Trip],
-  })
-  findBulk(@Query('ids') ids: string): Promise<Trip[]> {
-    return this.tripsService.findBulk(ids.split(','));
   }
 
   @Post()
@@ -116,7 +114,7 @@ export class TripsController {
     return this.tripsService.create(trip);
   }
 
-  @Post('duplicate/:id')
+  @Post(':id/duplicate')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()

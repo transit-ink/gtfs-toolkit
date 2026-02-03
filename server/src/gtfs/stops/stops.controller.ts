@@ -30,7 +30,7 @@ export class StopsController {
   constructor(private readonly stopsService: StopsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all stops' })
+  @ApiOperation({ summary: 'Get all stops, optionally filtered' })
   @ApiQuery({
     name: 'page',
     required: false,
@@ -51,9 +51,15 @@ export class StopsController {
     required: false,
     description: 'Sort order (ASC or DESC, default: ASC)',
   })
+  @ApiQuery({
+    name: 'ids',
+    required: false,
+    description: 'Optional comma-separated list of stop IDs to fetch in bulk',
+    type: String,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns paginated stops',
+    description: 'Returns paginated stops, or all stops matching the provided IDs',
     type: [Stop],
   })
   findAll(
@@ -61,7 +67,17 @@ export class StopsController {
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
+    @Query('ids') ids?: string,
   ) {
+    if (ids) {
+      const stopIds = ids
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      return this.stopsService.findByIds(stopIds);
+    }
+
+    // Bulk fetch by IDs is now supported via the same endpoint using the ids query parameter.
     const params: PaginationParams = {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -140,23 +156,6 @@ export class StopsController {
       parseFloat(radius),
       params,
     );
-  }
-
-  @Get('bulk')
-  @ApiOperation({ summary: 'Get stops by multiple IDs' })
-  @ApiQuery({
-    name: 'ids',
-    required: true,
-    description: 'Comma-separated list of stop IDs',
-    type: String,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns stops matching the provided IDs',
-    type: [Stop],
-  })
-  findByIds(@Query('ids') ids: string): Promise<Stop[]> {
-    return this.stopsService.findByIds(ids.split(','));
   }
 
   @Get('bounds')

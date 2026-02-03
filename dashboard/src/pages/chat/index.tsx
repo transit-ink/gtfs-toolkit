@@ -110,11 +110,11 @@ const Chat = () => {
     localStorage.setItem(SESSION_STORAGE_KEY, newSessionId);
   };
 
-  // Send message to test-chat endpoint
+  // Send message to WhatsApp test-messages endpoint
   const sendMessage = async (text: string): Promise<string> => {
     try {
       const response = await api.post(
-        '/whatsapp/test-chat',
+        '/whatsapp/test-messages',
         { message: text, sessionId },
         {
           headers: {

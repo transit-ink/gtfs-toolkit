@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const fetchUserProfile = async () => {
     try {
-      const response = await axios.get('/auth/profile');
+      const response = await axios.get('/users/me');
       const userData = response.data;
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));

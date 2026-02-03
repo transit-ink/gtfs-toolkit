@@ -6,7 +6,7 @@ import { currentInstance } from '@/utils/constants';
  * Same content as the EOD cron export but returned as a file download.
  */
 export const exportGtfs = async (): Promise<void> => {
-  const response = await axios.get('/admin/export-gtfs', {
+  const response = await axios.get('/gtfs/exports/latest', {
     responseType: 'blob',
   });
   const blob = response.data as Blob;

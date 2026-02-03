@@ -29,11 +29,16 @@ export class RoutesController {
   constructor(private readonly routesService: RoutesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all routes' })
+  @ApiOperation({ summary: 'Get all routes, optionally filtered' })
   @ApiQuery({
     name: 'agencyId',
-    required: true,
-    description: 'Filter routes by agency ID',
+    required: false,
+    description: 'Optional filter by agency ID',
+  })
+  @ApiQuery({
+    name: 'ids',
+    required: false,
+    description: 'Optional comma-separated list of route IDs to fetch in bulk',
   })
   @ApiQuery({
     name: 'page',
@@ -57,16 +62,25 @@ export class RoutesController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns paginated routes',
+    description: 'Returns paginated routes, or all routes matching the provided IDs',
     type: [Route],
   })
   findAll(
-    @Query('agencyId') agencyId: string,
+    @Query('agencyId') agencyId?: string,
+    @Query('ids') ids?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
   ) {
+    if (ids) {
+      const routeIds = ids
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      return this.routesService.findBulk(routeIds);
+    }
+
     const params: PaginationParams = {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -74,22 +88,6 @@ export class RoutesController {
       sortOrder,
     };
     return this.routesService.findAll(agencyId, params);
-  }
-
-  @Get('bulk')
-  @ApiOperation({ summary: 'Get routes by IDs' })
-  @ApiQuery({
-    name: 'ids',
-    required: true,
-    description: 'Comma-separated list of route IDs',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the routes',
-    type: [Route],
-  })
-  findBulk(@Query('ids') ids: string): Promise<Route[]> {
-    return this.routesService.findBulk(ids.split(','));
   }
 
   @Get('search')

@@ -35,10 +35,12 @@ export class Route {
   route_id: string;
 
   @ApiProperty({ description: 'ID of the agency' })
+  @Index('idx_routes_agency_id')
   @Column()
   agency_id: string;
 
   @ApiProperty({ description: 'Short name of the route' })
+  @Index('idx_routes_short_name')
   @Column()
   route_short_name: string;
 

@@ -150,24 +150,29 @@ export class TripsService {
 
     // Create new stop times with incremented times
     const newStopTimes = sourceStopTimes.map((st) => {
-      const newStopTime = new StopTime();
-      newStopTime.trip_id = newTripId;
-      newStopTime.stop_id = st.stop_id;
-      newStopTime.stop_sequence = st.stop_sequence;
-      newStopTime.arrival_time = st.arrival_time ? addMinutes(st.arrival_time, timeIncrementMinutes) : undefined;
-      newStopTime.departure_time = st.departure_time ? addMinutes(st.departure_time, timeIncrementMinutes) : undefined;
-      newStopTime.stop_headsign = st.stop_headsign;
-      newStopTime.stop_tts_headsign = st.stop_tts_headsign;
-      newStopTime.pickup_type = st.pickup_type;
-      newStopTime.drop_off_type = st.drop_off_type;
-      newStopTime.continuous_pickup = st.continuous_pickup;
-      newStopTime.continuous_drop_off = st.continuous_drop_off;
-      newStopTime.shape_dist_traveled = st.shape_dist_traveled;
-      newStopTime.timepoint = st.timepoint;
+      const newStopTime = this.stopTimeRepository.create({
+        trip_id: newTripId,
+        stop_id: st.stop_id,
+        stop_sequence: st.stop_sequence,
+        arrival_time: st.arrival_time
+          ? addMinutes(st.arrival_time, timeIncrementMinutes)
+          : undefined,
+        departure_time: st.departure_time
+          ? addMinutes(st.departure_time, timeIncrementMinutes)
+          : undefined,
+        stop_headsign: st.stop_headsign,
+        stop_tts_headsign: st.stop_tts_headsign,
+        pickup_type: st.pickup_type,
+        drop_off_type: st.drop_off_type,
+        continuous_pickup: st.continuous_pickup,
+        continuous_drop_off: st.continuous_drop_off,
+        shape_dist_traveled: st.shape_dist_traveled,
+        timepoint: st.timepoint,
+      });
       return newStopTime;
     });
 
-    await this.stopTimeRepository.save(newStopTimes);
+    await this.stopTimeRepository.insert(newStopTimes);
 
     return { trip: savedTrip, stopTimes: newStopTimes };
   }

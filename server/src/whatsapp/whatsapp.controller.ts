@@ -101,7 +101,7 @@ export class WhatsAppController {
    * Test chat endpoint for dashboard emulation
    * Uses X-Dashboard-Auth header to distinguish from real WhatsApp requests
    */
-  @Post('test-chat')
+  @Post('test-messages')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Test chat endpoint for dashboard' })
   @ApiResponse({ status: 200, description: 'Chat response returned' })

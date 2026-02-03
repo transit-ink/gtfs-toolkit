@@ -25,13 +25,14 @@ export enum DropOffType {
   COORDINATE_WITH_DRIVER = 3,
 }
 
+@Index('idx_stop_times_trip_id_stop_sequence', ['trip_id', 'stop_sequence'])
 @Entity('stop_times')
 export class StopTime {
   @PrimaryGeneratedColumn()
   id: number;
 
   @ApiProperty({ description: 'ID of the trip' })
-  @Index()
+  @Index('idx_stop_times_trip_id')
   @Column()
   trip_id: string;
 
@@ -44,6 +45,7 @@ export class StopTime {
   departure_time?: string;
 
   @ApiProperty({ description: 'ID of the stop' })
+  @Index('idx_stop_times_stop_id')
   @PrimaryColumn()
   stop_id: string;
 

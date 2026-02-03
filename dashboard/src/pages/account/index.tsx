@@ -58,7 +58,7 @@ export default function AccountPage() {
 
     setIsSavingProfile(true);
     try {
-      await api.post('/auth/profile', {
+      await api.patch('/users/me', {
         username: profileForm.username.trim(),
         email: profileForm.email.trim(),
         profileUrl: profileForm.profileUrl.trim() || undefined,
@@ -94,7 +94,7 @@ export default function AccountPage() {
 
     setIsSubmitting(true);
     try {
-      await api.post('/auth/password', {
+      await api.patch('/users/me/password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });

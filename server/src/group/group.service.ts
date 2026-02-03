@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import {
+  PaginatedResponse,
+  PaginationParams,
+} from '../common/interfaces/pagination.interface';
 import { Group } from './group.entity';
 
 @Injectable()
@@ -10,10 +14,32 @@ export class GroupService {
     private groupRepository: Repository<Group>,
   ) {}
 
-  async findAll(): Promise<Group[]> {
-    return this.groupRepository.find({
-      order: { name: 'ASC' },
-    });
+  async findAll(
+    params?: PaginationParams,
+  ): Promise<PaginatedResponse<Group>> {
+    const {
+      page = 1,
+      limit = 100,
+      sortBy = 'name',
+      sortOrder = 'ASC',
+    } = params || {};
+
+    const queryBuilder = this.groupRepository.createQueryBuilder('group');
+
+    queryBuilder.orderBy(`group.${sortBy}`, sortOrder);
+    queryBuilder.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findById(groupId: string): Promise<Group> {

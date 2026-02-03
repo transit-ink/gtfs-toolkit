@@ -142,37 +142,56 @@ export class StopTimesService {
   async addStopToTrips(dto: AddStopToTripsDto): Promise<{ added: number }> {
     const { tripIds, stopId, arrivalTime, departureTime } = dto;
 
-    let addedCount = 0;
+    const uniqueTripIds = Array.from(new Set(tripIds));
 
-    for (const tripId of tripIds) {
-      // Get current max sequence for this trip
-      const existingStopTimes = await this.stopTimesRepository.find({
-        where: { trip_id: tripId },
-        order: { stop_sequence: 'DESC' },
-        take: 1,
-      });
+    if (uniqueTripIds.length === 0) {
+      return { added: 0 };
+    }
 
-      const maxSequence = existingStopTimes.length > 0 ? existingStopTimes[0].stop_sequence : 0;
+    // Fetch current max stop_sequence for all trips in a single query
+    const maxSequencesRaw = await this.stopTimesRepository
+      .createQueryBuilder('st')
+      .select('st.trip_id', 'trip_id')
+      .addSelect('MAX(st.stop_sequence)', 'max_seq')
+      .where('st.trip_id IN (:...tripIds)', { tripIds: uniqueTripIds })
+      .groupBy('st.trip_id')
+      .getRawMany<{ trip_id: string; max_seq: string | null }>();
 
-      // Check if stop already exists in this trip
-      const exists = await this.stopTimesRepository.findOne({
-        where: { trip_id: tripId, stop_id: stopId },
-      });
+    const maxSequenceByTrip = new Map<string, number>();
+    maxSequencesRaw.forEach((row) => {
+      const maxSeq = row.max_seq !== null ? parseInt(row.max_seq, 10) : 0;
+      maxSequenceByTrip.set(row.trip_id, Number.isNaN(maxSeq) ? 0 : maxSeq);
+    });
 
-      if (!exists) {
-        const newStopTime = this.stopTimesRepository.create({
+    // Fetch all trips that already have this stop in a single query
+    const existingForStop = await this.stopTimesRepository.find({
+      where: { trip_id: In(uniqueTripIds), stop_id: stopId },
+      select: ['trip_id'],
+    });
+
+    const tripsWithStop = new Set(existingForStop.map((st) => st.trip_id));
+
+    // Build new stop_times for trips that do not yet contain this stop
+    const newStopTimes = uniqueTripIds
+      .filter((tripId) => !tripsWithStop.has(tripId))
+      .map((tripId) => {
+        const currentMaxSeq = maxSequenceByTrip.get(tripId) ?? 0;
+        return this.stopTimesRepository.create({
           trip_id: tripId,
           stop_id: stopId,
-          stop_sequence: maxSequence + 1,
+          stop_sequence: currentMaxSeq + 1,
           arrival_time: arrivalTime,
           departure_time: departureTime,
         });
-        await this.stopTimesRepository.save(newStopTime);
-        addedCount++;
-      }
+      });
+
+    if (newStopTimes.length === 0) {
+      return { added: 0 };
     }
 
-    return { added: addedCount };
+    await this.stopTimesRepository.insert(newStopTimes);
+
+    return { added: newStopTimes.length };
   }
 
   async removeStopFromTrips(dto: RemoveStopFromTripsDto): Promise<{ removed: number }> {
@@ -183,22 +202,28 @@ export class StopTimesService {
       stop_id: stopId,
     });
 
-    // Resequence remaining stops for each trip
-    for (const tripId of tripIds) {
-      const remainingStopTimes = await this.stopTimesRepository.find({
-        where: { trip_id: tripId },
-        order: { stop_sequence: 'ASC' },
-      });
+    // Resequence remaining stops for all affected trips in a single pass
+    const remainingStopTimes = await this.stopTimesRepository.find({
+      where: { trip_id: In(tripIds) },
+      order: { trip_id: 'ASC', stop_sequence: 'ASC' },
+    });
 
-      // Update sequences to be contiguous
-      const updatedStopTimes = remainingStopTimes.map((st, index) => {
-        st.stop_sequence = index + 1;
-        return st;
-      });
+    let currentTripId: string | null = null;
+    let sequenceCounter = 0;
 
-      if (updatedStopTimes.length > 0) {
-        await this.stopTimesRepository.save(updatedStopTimes);
+    const updatedStopTimes = remainingStopTimes.map((st) => {
+      if (st.trip_id !== currentTripId) {
+        currentTripId = st.trip_id;
+        sequenceCounter = 1;
+      } else {
+        sequenceCounter += 1;
       }
+      st.stop_sequence = sequenceCounter;
+      return st;
+    });
+
+    if (updatedStopTimes.length > 0) {
+      await this.stopTimesRepository.save(updatedStopTimes);
     }
 
     return { removed: result.affected || 0 };

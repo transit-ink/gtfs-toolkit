@@ -6,6 +6,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { User } from './entities/user.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { UsersController } from './users.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RolesGuard } from './guards/roles.guard';
@@ -30,7 +31,7 @@ import { RolesGuard } from './guards/roles.guard';
     ]),
   ],
   providers: [AuthService, JwtStrategy, RolesGuard],
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   exports: [AuthService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

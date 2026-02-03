@@ -50,3 +50,4 @@ temp/
 gtfs
 
 server/certificates
+server/.sentryclirc

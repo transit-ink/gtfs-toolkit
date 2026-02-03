@@ -52,6 +52,8 @@ interface TripColumnProps {
   ) => void;
   adjustColumnTime: (tripId: string, minutes: number) => void;
   onDeleteTrip: (tripId: string, tripNumber: number) => void;
+  virtualTopSpacer?: number;
+  virtualBottomSpacer?: number;
 }
 
 export function TripColumn({
@@ -63,7 +65,12 @@ export function TripColumn({
   updateTripTime,
   adjustColumnTime,
   onDeleteTrip,
+  virtualTopSpacer,
+  virtualBottomSpacer,
 }: TripColumnProps) {
+  const topSpacer = virtualTopSpacer ?? 0;
+  const bottomSpacer = virtualBottomSpacer ?? 0;
+
   return (
     <div
       className={`border-r last:border-r-0 ${timingsEditMode ? 'min-w-[140px]' : 'min-w-[70px]'}`}
@@ -115,6 +122,7 @@ export function TripColumn({
           )}
         </div>
       </div>
+      {topSpacer > 0 && <div style={{ height: topSpacer }} />}
       {stopSequence.map((stopId, stopIndex) => (
         <TripColumnTimeCell
           key={`${tripId}-${stopId}-${stopIndex}`}
@@ -126,6 +134,7 @@ export function TripColumn({
           updateTripTime={updateTripTime}
         />
       ))}
+      {bottomSpacer > 0 && <div style={{ height: bottomSpacer }} />}
     </div>
   );
 }

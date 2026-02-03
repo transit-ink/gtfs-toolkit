@@ -29,7 +29,7 @@ export const getRoute = async (id: string): Promise<Route> => {
 // Get routes by IDs (bulk)
 export const getRoutesBulk = async (ids: string[]): Promise<Route[]> => {
   if (ids.length === 0) return [];
-  const response = await axios.get<Route[]>('/gtfs/routes/bulk', {
+  const response = await axios.get<Route[]>('/gtfs/routes', {
     params: { ids: ids.join(',') },
   });
   return response.data;
@@ -61,7 +61,7 @@ export const getTripsBulkByRouteIds = async (routeIds: string[]): Promise<Trip[]
 // Get shapes by IDs
 export const getShapesBulk = async (ids: string[]): Promise<Shape[]> => {
   if (ids.length === 0) return [];
-  const response = await axios.get<Shape[]>('/gtfs/shapes/bulk', {
+  const response = await axios.get<Shape[]>('/gtfs/shapes', {
     params: { ids: ids.join(',') },
   });
   return response.data;
@@ -109,7 +109,7 @@ export const getStopTimes = async (tripIds: string[]): Promise<StopTime[]> => {
 // Get stops by IDs
 export const getStopsBulk = async (ids: string[]): Promise<Stop[]> => {
   if (ids.length === 0) return [];
-  const response = await axios.get<Stop[]>('/gtfs/stops/bulk', {
+  const response = await axios.get<Stop[]>('/gtfs/stops', {
     params: { ids: ids.join(',') },
   });
   return response.data;
@@ -139,10 +139,10 @@ export const updateShape = async (
   shapeId: string,
   points: ShapePoint[]
 ): Promise<{ updated: number }> => {
-  const response = await axios.post<{ updated: number }>('/gtfs/shapes/update', {
-    shapeId,
-    points,
-  });
+  const response = await axios.put<{ updated: number }>(
+    `/gtfs/shapes/${encodeURIComponent(shapeId)}`,
+    { points },
+  );
   return response.data;
 };
 
@@ -207,7 +207,7 @@ export const duplicateTrip = async (
   timeIncrementMinutes: number = 5
 ): Promise<{ trip: Trip; stopTimes: StopTime[] }> => {
   const response = await axios.post<{ trip: Trip; stopTimes: StopTime[] }>(
-    `/gtfs/trips/duplicate/${encodeURIComponent(sourceTripId)}`,
+    `/gtfs/trips/${encodeURIComponent(sourceTripId)}/duplicate`,
     {
       newTripId,
       timeIncrementMinutes,

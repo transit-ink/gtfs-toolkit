@@ -13,31 +13,41 @@ export class GroupController {
   constructor(private readonly groupService: GroupService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all groups' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns all groups',
-    type: [Group],
-  })
-  findAll(): Promise<Group[]> {
-    return this.groupService.findAll();
-  }
-
-  @Get('bulk')
-  @ApiOperation({ summary: 'Get groups by multiple IDs' })
+  @ApiOperation({ summary: 'Get all groups or filter by IDs' })
   @ApiQuery({
     name: 'ids',
-    required: true,
-    description: 'Comma-separated list of group IDs',
+    required: false,
+    description:
+      'Optional comma-separated list of group IDs (group_id) to filter by. When omitted, returns all groups.',
     type: String,
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns groups matching the provided IDs',
+    description: 'Returns all groups or those matching the provided IDs',
     type: [Group],
   })
-  findByIds(@Query('ids') ids: string): Promise<Group[]> {
-    const groupIds = ids.split(',').map(id => id.trim()).filter(Boolean);
+  findAll(
+    @Query('ids') ids?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<Group[]> {
+    if (!ids) {
+      const pageNumber = page ? parseInt(page, 10) : undefined;
+      const limitNumber = limit ? parseInt(limit, 10) : undefined;
+
+      return this.groupService
+        .findAll({
+          page: pageNumber,
+          limit: limitNumber,
+          sortBy: 'name',
+          sortOrder: 'ASC',
+        })
+        .then((result) => result.data);
+    }
+    const groupIds = ids
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
     return this.groupService.findByIds(groupIds);
   }
 

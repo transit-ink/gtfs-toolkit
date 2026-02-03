@@ -27,23 +27,23 @@ export interface UpdateUserData {
 
 // Get all users (admin only)
 export const getUsers = async (): Promise<User[]> => {
-  const response = await axios.get<User[]>('/auth/users');
+  const response = await axios.get<User[]>('/users');
   return response.data;
 };
 
 // Create a new user (admin only)
 export const createUser = async (userData: CreateUserData): Promise<User> => {
-  const response = await axios.post<User>('/auth/users', userData);
+  const response = await axios.post<User>('/users', userData);
   return response.data;
 };
 
 // Update a user (admin only)
 export const updateUser = async (userId: string, userData: UpdateUserData): Promise<User> => {
-  const response = await axios.put<User>(`/auth/users/${encodeURIComponent(userId)}`, userData);
+  const response = await axios.put<User>(`/users/${encodeURIComponent(userId)}`, userData);
   return response.data;
 };
 
 // Delete a user (admin only)
 export const deleteUser = async (userId: string): Promise<void> => {
-  await axios.delete(`/auth/users/${encodeURIComponent(userId)}`);
+  await axios.delete(`/users/${encodeURIComponent(userId)}`);
 };

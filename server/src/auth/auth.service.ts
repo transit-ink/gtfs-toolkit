@@ -7,6 +7,10 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import {
+  PaginatedResponse,
+  PaginationParams,
+} from '../common/interfaces/pagination.interface';
 import { CreateUserAdminDto } from './dto/create-user-admin.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -168,15 +172,40 @@ export class AuthService {
     return userWithoutPassword;
   }
 
-  async findAll(): Promise<
-    Omit<User, 'password' | 'validatePassword' | 'hashPassword'>[]
+  async findAll(
+    params?: PaginationParams,
+  ): Promise<
+    PaginatedResponse<
+      Omit<User, 'password' | 'validatePassword' | 'hashPassword'>
+    >
   > {
-    const users = await this.userRepository.find({
-      order: { username: 'ASC' },
-    });
-    return users.map(
+    const {
+      page = 1,
+      limit = 1000,
+      sortBy = 'username',
+      sortOrder = 'ASC',
+    } = params || {};
+
+    const queryBuilder = this.userRepository.createQueryBuilder('user');
+
+    queryBuilder.orderBy(`user.${sortBy}`, sortOrder);
+    queryBuilder.skip((page - 1) * limit).take(limit);
+
+    const [users, total] = await queryBuilder.getManyAndCount();
+
+    const safeUsers = users.map(
       ({ password, ...userWithoutPassword }) => userWithoutPassword,
     );
+
+    return {
+      data: safeUsers,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async createUser(
@@ -225,15 +254,24 @@ export class AuthService {
     }
 
     // Check if username or email is already taken by another user
-    if (updateUserDto.username || (updateUserDto.email !== undefined && updateUserDto.email !== null && updateUserDto.email !== '')) {
+    if (
+      updateUserDto.username ||
+      (updateUserDto.email !== undefined &&
+        updateUserDto.email !== null &&
+        updateUserDto.email !== '')
+    ) {
       const whereConditions: any[] = [];
       if (updateUserDto.username) {
         whereConditions.push({ username: updateUserDto.username });
       }
-      if (updateUserDto.email !== undefined && updateUserDto.email !== null && updateUserDto.email !== '') {
+      if (
+        updateUserDto.email !== undefined &&
+        updateUserDto.email !== null &&
+        updateUserDto.email !== ''
+      ) {
         whereConditions.push({ email: updateUserDto.email });
       }
-      
+
       if (whereConditions.length > 0) {
         const existingUser = await this.userRepository.findOne({
           where: whereConditions,
@@ -246,7 +284,10 @@ export class AuthService {
           ) {
             throw new BadRequestException('Username already exists');
           }
-          if (updateUserDto.email && existingUser.email === updateUserDto.email) {
+          if (
+            updateUserDto.email &&
+            existingUser.email === updateUserDto.email
+          ) {
             throw new BadRequestException('Email already exists');
           }
         }
@@ -259,7 +300,8 @@ export class AuthService {
     }
     if (updateUserDto.email !== undefined) {
       // Convert empty string to null to explicitly clear the email field
-      const emailValue: string | null = updateUserDto.email === '' ? null : updateUserDto.email;
+      const emailValue: string | null =
+        updateUserDto.email === '' ? null : updateUserDto.email;
       (user as any).email = emailValue;
     }
     if (updateUserDto.roles !== undefined) {
