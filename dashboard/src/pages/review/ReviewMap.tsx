@@ -1,17 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Maximize2, Minimize2, User, X } from 'lucide-react';
-import {
-  Changeset,
-  Change,
-  EntityType,
-  ChangeOperation,
-} from '@/services/changesets';
+import { Change, ChangeOperation, Changeset, EntityType } from '@/services/changesets';
 import { currentInstance } from '@/utils/constants';
+import { Loader2, Maximize2, Minimize2, User, X } from 'lucide-react';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
@@ -44,7 +39,7 @@ interface ChangesetMarkerData {
 
 function getLocationFromChange(change: Change): { lat: number; lon: number } | null {
   const data = change.operation === ChangeOperation.DELETE ? change.old_data : change.new_data;
-  
+
   if (!data) return null;
 
   // For stops, get lat/lon directly
@@ -70,14 +65,16 @@ function getLocationFromChange(change: Change): { lat: number; lon: number } | n
 
 function getDisplayNameFromChange(change: Change): string {
   const data = change.operation === ChangeOperation.DELETE ? change.old_data : change.new_data;
-  
+
   if (!data) return change.entity_id;
 
   switch (change.entity_type) {
     case EntityType.STOP:
       return (data.stop_name as string) || change.entity_id;
     case EntityType.ROUTE:
-      return (data.route_short_name as string) || (data.route_long_name as string) || change.entity_id;
+      return (
+        (data.route_short_name as string) || (data.route_long_name as string) || change.entity_id
+      );
     case EntityType.TRIP:
       return (data.trip_headsign as string) || change.entity_id;
     default:
@@ -105,7 +102,7 @@ export function ReviewMap({
 
   const [mapReady, setMapReady] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [hoveredMarker, setHoveredMarker] = useState<ChangesetMarkerData | null>(null);
+  // const [hoveredMarker, setHoveredMarker] = useState<ChangesetMarkerData | null>(null);
 
   // Build color map for changesets
   const changesetColorMap = useMemo(() => {
@@ -120,10 +117,10 @@ export function ReviewMap({
   const markerData = useMemo(() => {
     const markers: ChangesetMarkerData[] = [];
 
-    changesets.forEach((changeset) => {
+    changesets.forEach(changeset => {
       const color = changesetColorMap.get(changeset.id) || CHANGESET_COLORS[0];
 
-      changeset.changes.forEach((change) => {
+      changeset.changes.forEach(change => {
         const location = getLocationFromChange(change);
         if (location) {
           markers.push({
@@ -179,13 +176,19 @@ export function ReviewMap({
       popupRef.current.remove();
     }
 
-    const opLabel = marker.operation === ChangeOperation.CREATE ? 'Create' 
-      : marker.operation === ChangeOperation.UPDATE ? 'Update' 
-      : 'Delete';
+    const opLabel =
+      marker.operation === ChangeOperation.CREATE
+        ? 'Create'
+        : marker.operation === ChangeOperation.UPDATE
+          ? 'Update'
+          : 'Delete';
 
-    const entityLabel = marker.entityType === EntityType.STOP ? 'Stop'
-      : marker.entityType === EntityType.SHAPE ? 'Shape'
-      : marker.entityType;
+    const entityLabel =
+      marker.entityType === EntityType.STOP
+        ? 'Stop'
+        : marker.entityType === EntityType.SHAPE
+          ? 'Shape'
+          : marker.entityType;
 
     popupRef.current = new maplibregl.Popup({
       closeButton: false,
@@ -193,7 +196,8 @@ export function ReviewMap({
       offset: 25,
     })
       .setLngLat(lngLat)
-      .setHTML(`
+      .setHTML(
+        `
         <div style="padding: 8px; min-width: 150px;">
           <div style="font-weight: 600; margin-bottom: 4px;">${marker.displayName}</div>
           <div style="font-size: 12px; color: #666;">
@@ -204,7 +208,8 @@ export function ReviewMap({
             ${opLabel} ${entityLabel}
           </div>
         </div>
-      `)
+      `
+      )
       .addTo(map.current);
   }, []);
 
@@ -213,19 +218,22 @@ export function ReviewMap({
     if (!map.current || !mapReady) return;
 
     // Remove old markers
-    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current.forEach(marker => marker.remove());
     markersRef.current.clear();
 
     // Add new markers
     markerData.forEach((data, index) => {
       const isSelected = data.changesetId === selectedChangesetId;
       const el = document.createElement('div');
-      
+
       // Different shapes for different operations
       const size = isSelected ? 28 : 20;
-      const opShape = data.operation === ChangeOperation.CREATE ? 'circle'
-        : data.operation === ChangeOperation.UPDATE ? 'square'
-        : 'diamond';
+      const opShape =
+        data.operation === ChangeOperation.CREATE
+          ? 'circle'
+          : data.operation === ChangeOperation.UPDATE
+            ? 'square'
+            : 'diamond';
 
       if (opShape === 'circle') {
         el.innerHTML = `
@@ -259,7 +267,7 @@ export function ReviewMap({
       }
 
       el.addEventListener('mouseenter', () => {
-        setHoveredMarker(data);
+        // setHoveredMarker(data);
         showPopup(data, [data.lon, data.lat]);
         if (!isSelected) {
           el.style.transform = 'scale(1.2)';
@@ -267,14 +275,14 @@ export function ReviewMap({
       });
 
       el.addEventListener('mouseleave', () => {
-        setHoveredMarker(null);
+        // setHoveredMarker(null);
         popupRef.current?.remove();
         if (!isSelected) {
           el.style.transform = 'scale(1)';
         }
       });
 
-      el.addEventListener('click', (e) => {
+      el.addEventListener('click', e => {
         e.stopPropagation();
         onSelectChangeset(data.changesetId);
       });
@@ -289,10 +297,10 @@ export function ReviewMap({
     // Fit bounds to show all markers
     if (markerData.length > 0) {
       const bounds = new maplibregl.LngLatBounds();
-      markerData.forEach((data) => {
+      markerData.forEach(data => {
         bounds.extend([data.lon, data.lat]);
       });
-      
+
       map.current.fitBounds(bounds, {
         padding: 50,
         maxZoom: 15,
@@ -304,7 +312,7 @@ export function ReviewMap({
   // Legend for the map
   const uniqueAuthors = useMemo(() => {
     const authors = new Map<string, { name: string; color: string; count: number }>();
-    changesets.forEach((cs) => {
+    changesets.forEach(cs => {
       const color = changesetColorMap.get(cs.id) || CHANGESET_COLORS[0];
       const existing = authors.get(cs.user_id);
       if (existing) {
@@ -373,9 +381,7 @@ export function ReviewMap({
                       style={{ backgroundColor: author.color }}
                     />
                     <span className="truncate">{author.name}</span>
-                    <span className="text-muted-foreground ml-auto">
-                      ({author.count})
-                    </span>
+                    <span className="text-muted-foreground ml-auto">({author.count})</span>
                   </div>
                 ))}
               </div>

@@ -4,6 +4,7 @@ import {
   Bus,
   CalendarDays,
   ClipboardCheck,
+  GitPullRequest,
   Layers,
   LogOut,
   MapPin,
@@ -43,6 +44,7 @@ type NavItem = {
   icon: ComponentType<{ className?: string }>;
   adminOnly?: boolean;
   moderatorOnly?: boolean;
+  contributorOnly?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -52,6 +54,7 @@ const navItems: NavItem[] = [
   { title: 'Groups', url: '/groups', icon: Layers },
   { title: 'Chat', url: '/chat', icon: MessageSquare },
   { title: 'Documentation', url: '/docs', icon: Book },
+  { title: 'My Changes', url: '/my-changes', icon: GitPullRequest, contributorOnly: true },
   { title: 'Review', url: '/review', icon: ClipboardCheck, moderatorOnly: true },
   { title: 'Admin', url: '/admin', icon: Shield, adminOnly: true },
 ];
@@ -83,10 +86,14 @@ export function AppSidebar() {
   const { user, logout } = useAuth();
   const isAdmin = user?.roles?.includes('admin') ?? false;
   const isModerator = user?.roles?.includes('moderator') ?? false;
+  const isContributor = user?.roles?.includes('contributor') ?? false;
   const canReview = isAdmin || isModerator;
+  // Contributors use the changeset workflow; moderators/admins make direct edits
+  const isContributorOnly = isContributor && !canReview;
   const visibleNavItems = navItems.filter(item => {
     if (item.adminOnly && !isAdmin) return false;
     if (item.moderatorOnly && !canReview) return false;
+    if (item.contributorOnly && !isContributorOnly) return false;
     return true;
   });
 

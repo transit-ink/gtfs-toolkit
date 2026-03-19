@@ -4,7 +4,6 @@ import { Outlet } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
 import { useChangeset } from "@/context/ChangesetContext"
 import { AppSidebar } from "./app-sidebar"
-import { ChangesetPanel } from "./ChangesetPanel"
 
 export function Layout() {
   const { isAuthenticated } = useAuth();
@@ -37,17 +36,9 @@ export function Layout() {
             </div>
           )}
         </header>
-        <div className="flex flex-1 overflow-hidden">
-          <main className="flex-1 overflow-auto p-4">
-            <Outlet />
-          </main>
-          {/* Show changeset panel for contributors */}
-          {isContributorUser && (
-            <aside className="w-80 border-l p-4 overflow-auto hidden lg:block">
-              <ChangesetPanel />
-            </aside>
-          )}
-        </div>
+        <main className="flex-1 overflow-auto p-4">
+          <Outlet />
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )

@@ -192,10 +192,12 @@ export interface BulkUpdateStopTime {
 }
 
 export const bulkUpdateStopTimes = async (
-  updates: BulkUpdateStopTime[]
+  updates: BulkUpdateStopTime[],
+  routeId?: string
 ): Promise<{ updated: number }> => {
   const response = await axios.post<{ updated: number }>('/gtfs/stop_times/bulk-update', {
     updates,
+    routeId,
   });
   return response.data;
 };

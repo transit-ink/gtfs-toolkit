@@ -16,6 +16,8 @@ import { Changeset, ChangesetStatus } from './entities/changeset.entity';
 
 export interface CreateChangesetDto {
   description?: string;
+  related_route_id?: string;
+  related_stop_id?: string;
 }
 
 export interface AddChangeDto {
@@ -41,6 +43,8 @@ export interface ChangesetFilterParams extends PaginationParams {
   status?: ChangesetStatus;
   user_id?: string;
   entity_type?: EntityType;
+  related_route_id?: string;
+  related_stop_id?: string;
 }
 
 @Injectable()
@@ -64,6 +68,8 @@ export class ChangesetService {
       status,
       user_id,
       entity_type,
+      related_route_id,
+      related_stop_id,
     } = params || {};
 
     const queryBuilder = this.changesetRepository
@@ -83,6 +89,18 @@ export class ChangesetService {
     if (entity_type) {
       queryBuilder.andWhere('changes.entity_type = :entity_type', {
         entity_type,
+      });
+    }
+
+    if (related_route_id) {
+      queryBuilder.andWhere('changeset.related_route_id = :related_route_id', {
+        related_route_id,
+      });
+    }
+
+    if (related_stop_id) {
+      queryBuilder.andWhere('changeset.related_stop_id = :related_stop_id', {
+        related_stop_id,
       });
     }
 
@@ -144,6 +162,8 @@ export class ChangesetService {
     const changeset = this.changesetRepository.create({
       user_id: user.id,
       description: dto.description,
+      related_route_id: dto.related_route_id || null,
+      related_stop_id: dto.related_stop_id || null,
       status: ChangesetStatus.DRAFT,
     });
 
@@ -203,6 +223,21 @@ export class ChangesetService {
       throw new BadRequestException(
         'Changes can only be added to draft changesets',
       );
+    }
+
+    // Update changeset's related fields if not already set
+    // This associates the changeset with the first route/stop that is edited
+    let changesetUpdated = false;
+    if (!changeset.related_route_id && dto.related_route_id) {
+      changeset.related_route_id = dto.related_route_id;
+      changesetUpdated = true;
+    }
+    if (!changeset.related_stop_id && dto.related_stop_id) {
+      changeset.related_stop_id = dto.related_stop_id;
+      changesetUpdated = true;
+    }
+    if (changesetUpdated) {
+      await this.changesetRepository.save(changeset);
     }
 
     // Check if there's already a change for this entity in this changeset
@@ -346,7 +381,7 @@ export class ChangesetService {
     description: string,
     changeDto: AddChangeDto,
   ): Promise<{ changeset: Changeset; change: Change }> {
-    // Create the changeset
+    // Create the changeset with related route/stop from the change
     const changeset = this.changesetRepository.create({
       user_id: user.id,
       description,
@@ -354,6 +389,8 @@ export class ChangesetService {
       reviewed_by: user.id, // Self-approved
       reviewed_at: new Date(),
       review_comment: 'Auto-approved (moderator/admin edit)',
+      related_route_id: changeDto.related_route_id || null,
+      related_stop_id: changeDto.related_stop_id || null,
     });
 
     const savedChangeset = await this.changesetRepository.save(changeset);
@@ -540,5 +577,38 @@ export class ChangesetService {
     }
 
     return queryBuilder.getMany();
+  }
+
+  /**
+   * Get top contributors for a route based on approved changesets.
+   * Returns users who have made changes to this route, ordered by change count.
+   */
+  async getRouteContributors(
+    routeId: string,
+    limit: number = 3,
+  ): Promise<{ userId: string; username: string; changeCount: number }[]> {
+    const result = await this.changeRepository
+      .createQueryBuilder('change')
+      .innerJoin('change.changeset', 'changeset')
+      .innerJoin('changeset.user', 'user')
+      .select('user.id', 'userId')
+      .addSelect('user.username', 'username')
+      .addSelect('COUNT(change.id)', 'changeCount')
+      .where('changeset.status = :status', { status: ChangesetStatus.APPROVED })
+      .andWhere(
+        '(change.related_route_id = :routeId OR (change.entity_type = :routeType AND change.entity_id = :routeId))',
+        { routeId, routeType: EntityType.ROUTE },
+      )
+      .groupBy('user.id')
+      .addGroupBy('user.username')
+      .orderBy('COUNT(change.id)', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    return result.map((row) => ({
+      userId: row.userId,
+      username: row.username,
+      changeCount: parseInt(row.changeCount, 10),
+    }));
   }
 }

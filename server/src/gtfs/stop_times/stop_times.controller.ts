@@ -357,6 +357,7 @@ export class StopTimesController {
           {
             related_trip_id: update.tripId,
             related_stop_id: update.stopId,
+            related_route_id: dto.routeId,
           },
         );
         addedCount++;

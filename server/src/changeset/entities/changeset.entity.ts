@@ -73,6 +73,23 @@ export class Changeset {
   @OneToMany(() => Change, (change) => change.changeset, { cascade: true })
   changes: Change[];
 
+  // Primary context - each changeset is centered on a route or stop
+  @ApiProperty({
+    description: 'Primary route this changeset is associated with',
+    nullable: true,
+  })
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  related_route_id: string | null;
+
+  @ApiProperty({
+    description: 'Primary stop this changeset is associated with',
+    nullable: true,
+  })
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  related_stop_id: string | null;
+
   @CreateDateColumn()
   created_at: Date;
 

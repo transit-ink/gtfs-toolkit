@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CircleLoaderBlock } from '../../components/circleLoader';
 import RouteMap from '../../components/routeMap';
+import { RouteContributors } from '../../components/RouteContributors';
 import Sidebar from '../../components/sidebar';
 import { usePageMeta } from '../../hooks/usePageMeta';
 import { Calendar, Route, Shape, Stop, StopTime, Trip } from '../../types/gtfs';
@@ -343,6 +344,9 @@ export default function RoutePage() {
           stops={details.stops}
           routeColor={details.route.route_color}
         />
+
+        {/* Contributors section */}
+        {routeId && <RouteContributors routeId={routeId} />}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ interface UseTripTimeEditParams {
   details: RouteDetails | null;
   timetableData: TimetableData;
   refreshTripsAndStops: () => Promise<void>;
+  routeId?: string;
 }
 
 export interface TripTimeChange {
@@ -23,6 +24,7 @@ export function useTripTimeEdit({
   details,
   timetableData,
   refreshTripsAndStops,
+  routeId,
 }: UseTripTimeEditParams) {
   const [tripTimeChanges, setTripTimeChanges] = useState<{
     [key: string]: TripTimeChange;
@@ -220,7 +222,7 @@ export function useTripTimeEdit({
         departureTime: change.departureTime,
       }));
 
-      await bulkUpdateStopTimes(updates);
+      await bulkUpdateStopTimes(updates, routeId);
 
       // Refresh route details to get updated stop times
       await refreshTripsAndStops();
@@ -240,7 +242,7 @@ export function useTripTimeEdit({
     } finally {
       setIsSavingTripTimes(false);
     }
-  }, [selectedShapeId, hasUnsavedTripTimeChanges, tripTimeChanges, refreshTripsAndStops]);
+  }, [selectedShapeId, hasUnsavedTripTimeChanges, tripTimeChanges, refreshTripsAndStops, routeId]);
 
   // Discard trip time changes
   const handleDiscardTripTimes = useCallback(() => {

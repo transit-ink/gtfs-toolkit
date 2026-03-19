@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, FileEdit, Loader2, X } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import {
   useRouteDetails,
@@ -18,10 +18,77 @@ import { RouteDetailsHeader } from './routeDetailsHeader';
 import { RouteDetailsMap } from './routeDetailsMap';
 import { RouteDetailsSidebar } from './routeDetailsSidebar';
 import { UnsavedChangesBanner } from './UnsavedChangesBanner';
+import { Changeset, ChangesetStatus, getChangeset } from '@/services/changesets';
+import { ChangesetHierarchy } from '@/components/EntityChangeCard';
+
+// Status badge component
+function ChangesetStatusBadge({ status }: { status: ChangesetStatus }) {
+  const styles = {
+    [ChangesetStatus.DRAFT]: 'bg-gray-100 text-gray-700',
+    [ChangesetStatus.PENDING]: 'bg-yellow-100 text-yellow-700',
+    [ChangesetStatus.APPROVED]: 'bg-green-100 text-green-700',
+    [ChangesetStatus.REJECTED]: 'bg-red-100 text-red-700',
+  };
+
+  const labels = {
+    [ChangesetStatus.DRAFT]: 'Draft',
+    [ChangesetStatus.PENDING]: 'Pending Review',
+    [ChangesetStatus.APPROVED]: 'Approved',
+    [ChangesetStatus.REJECTED]: 'Rejected',
+  };
+
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status]}`}>
+      {labels[status]}
+    </span>
+  );
+}
 
 export default function RouteDetailsPage() {
   const { routeId } = useParams<{ routeId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Changeset context from URL
+  const changesetId = searchParams.get('changeset');
+  const [viewingChangeset, setViewingChangeset] = useState<Changeset | null>(null);
+  const [changesetExpanded, setChangesetExpanded] = useState(true);
+
+  // Fetch changeset if ID is present in URL
+  useEffect(() => {
+    if (!changesetId) {
+      setViewingChangeset(null);
+      return;
+    }
+
+    const fetchChangeset = async () => {
+      try {
+        const changeset = await getChangeset(changesetId);
+        setViewingChangeset(changeset);
+      } catch (err) {
+        console.error('Failed to fetch changeset:', err);
+        setViewingChangeset(null);
+      }
+    };
+
+    fetchChangeset();
+  }, [changesetId]);
+
+  // Filter changes for this route
+  const routeChanges = useMemo(() => {
+    if (!viewingChangeset || !routeId) return [];
+    return viewingChangeset.changes.filter(
+      (change) =>
+        (change.entity_type === 'route' && change.entity_id === routeId) ||
+        change.related_route_id === routeId
+    );
+  }, [viewingChangeset, routeId]);
+
+  // Clear changeset context
+  const handleClearChangeset = () => {
+    searchParams.delete('changeset');
+    setSearchParams(searchParams);
+  };
 
   // Route details hook
   const {
@@ -171,6 +238,7 @@ export default function RouteDetailsPage() {
     details,
     timetableData,
     refreshTripsAndStops,
+    routeId,
   });
 
   // Map hook
@@ -270,6 +338,56 @@ export default function RouteDetailsPage() {
           onSave={handleSaveTripTimes}
           onDiscard={handleDiscardTripTimes}
         />
+      )}
+
+      {/* Changeset context banner */}
+      {viewingChangeset && (
+        <div className="bg-blue-50 border-b border-blue-200">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileEdit className="w-5 h-5 text-blue-600" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-blue-900">
+                      Viewing Changeset
+                    </span>
+                    <ChangesetStatusBadge status={viewingChangeset.status} />
+                  </div>
+                  <p className="text-sm text-blue-700">
+                    {viewingChangeset.description || 'No description'} •{' '}
+                    {viewingChangeset.user?.username || 'Unknown user'} •{' '}
+                    {routeChanges.length} change{routeChanges.length !== 1 ? 's' : ''} for this route
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setChangesetExpanded(!changesetExpanded)}
+                  className="text-blue-700 hover:text-blue-900 hover:bg-blue-100"
+                >
+                  {changesetExpanded ? 'Hide Changes' : 'Show Changes'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClearChangeset}
+                  className="text-blue-700 hover:text-blue-900 hover:bg-blue-100"
+                  title="Close changeset view"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            {changesetExpanded && routeChanges.length > 0 && (
+              <div className="mt-3 border rounded-lg p-3 bg-white">
+                <ChangesetHierarchy changes={routeChanges} />
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <RouteDetailsHeader details={details} />

@@ -46,6 +46,8 @@ export class ChangesetController {
   @ApiQuery({ name: 'status', required: false, enum: ChangesetStatus })
   @ApiQuery({ name: 'user_id', required: false, type: String })
   @ApiQuery({ name: 'entity_type', required: false, enum: EntityType })
+  @ApiQuery({ name: 'related_route_id', required: false, type: String })
+  @ApiQuery({ name: 'related_stop_id', required: false, type: String })
   @ApiResponse({ status: 200, description: 'List of changesets' })
   async findAll(
     @Query('page') page?: string,
@@ -53,6 +55,8 @@ export class ChangesetController {
     @Query('status') status?: ChangesetStatus,
     @Query('user_id') user_id?: string,
     @Query('entity_type') entity_type?: EntityType,
+    @Query('related_route_id') related_route_id?: string,
+    @Query('related_stop_id') related_stop_id?: string,
   ) {
     return this.changesetService.findAll({
       page: page ? parseInt(page, 10) : undefined,
@@ -60,6 +64,8 @@ export class ChangesetController {
       status,
       user_id,
       entity_type,
+      related_route_id,
+      related_stop_id,
     });
   }
 
@@ -70,6 +76,32 @@ export class ChangesetController {
   @ApiResponse({ status: 200, description: 'The draft changeset', type: Changeset })
   async getOrCreateDraft(@CurrentUser() user: User): Promise<Changeset> {
     return this.changesetService.getOrCreateDraft(user);
+  }
+
+  @Get('contributors/:routeId')
+  @ApiOperation({
+    summary: 'Get top contributors for a route',
+    description: 'Returns the top contributors who have made approved changes to a route',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of contributors with change counts',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string' },
+          username: { type: 'string' },
+          changeCount: { type: 'number' },
+        },
+      },
+    },
+  })
+  async getRouteContributors(
+    @Param('routeId') routeId: string,
+  ): Promise<{ userId: string; username: string; changeCount: number }[]> {
+    return this.changesetService.getRouteContributors(routeId, 3);
   }
 
   @Get(':id')

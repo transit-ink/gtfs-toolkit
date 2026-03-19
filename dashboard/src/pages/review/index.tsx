@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -19,17 +12,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   AlertCircle,
   Check,
   ChevronDown,
   ChevronUp,
   Clock,
+  ExternalLink,
   FileEdit,
   Loader2,
   Map,
   RefreshCw,
-  User,
   X,
 } from 'lucide-react';
 import {
@@ -43,165 +37,214 @@ import {
 import { ReviewMap } from './ReviewMap';
 import { ChangesetHierarchy } from '@/components/EntityChangeCard';
 
-interface ChangesetCardProps {
+// Get the primary route from a changeset (uses changeset-level field first, then derives from changes)
+function getRouteFromChangeset(changeset: Changeset): string | null {
+  // First check changeset-level related_route_id
+  if (changeset.related_route_id) {
+    return changeset.related_route_id;
+  }
+
+  // Fall back to deriving from changes
+  for (const change of changeset.changes) {
+    if (change.entity_type === 'route') {
+      return change.entity_id;
+    }
+    if (change.related_route_id) {
+      return change.related_route_id;
+    }
+  }
+
+  return null;
+}
+
+// Get the primary stop from a changeset
+function getStopFromChangeset(changeset: Changeset): string | null {
+  // First check changeset-level related_stop_id
+  if (changeset.related_stop_id) {
+    return changeset.related_stop_id;
+  }
+
+  // Fall back to deriving from changes
+  for (const change of changeset.changes) {
+    if (change.entity_type === 'stop') {
+      return change.entity_id;
+    }
+    if (change.related_stop_id) {
+      return change.related_stop_id;
+    }
+  }
+
+  return null;
+}
+
+// Color palette for changesets
+const CHANGESET_COLORS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#0ea5e9', '#6366f1', '#a855f7', '#ec4899', '#8b5cf6',
+];
+
+interface ChangesetRowProps {
   changeset: Changeset;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onViewRoute: (changeset: Changeset) => void;
   isProcessing: boolean;
   isSelected: boolean;
   onSelect: (id: string) => void;
   color?: string;
 }
 
-function ChangesetCard({ 
-  changeset, 
-  onApprove, 
-  onReject, 
+function ChangesetRow({
+  changeset,
+  onApprove,
+  onReject,
+  onViewRoute,
   isProcessing,
   isSelected,
   onSelect,
   color,
-}: ChangesetCardProps) {
+}: ChangesetRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const routeId = getRouteFromChangeset(changeset);
+  const stopId = getStopFromChangeset(changeset);
 
   return (
-    <Card 
-      className={`transition-all cursor-pointer ${isSelected ? 'ring-2 ring-primary shadow-md' : 'hover:shadow'}`}
-      onClick={() => onSelect(changeset.id)}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
+    <>
+      <tr
+        className={`hover:bg-accent/50 transition-colors cursor-pointer ${
+          isSelected ? 'bg-accent/30' : ''
+        }`}
+        onClick={() => onSelect(changeset.id)}
+      >
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-3">
             {color && (
               <div
-                className="w-3 h-3 rounded-full mt-1.5 shrink-0"
+                className="w-3 h-3 rounded-full shrink-0"
                 style={{ backgroundColor: color }}
               />
             )}
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <User className="w-4 h-4" />
-                {changeset.user?.username || 'Unknown User'}
-              </CardTitle>
-              <CardDescription className="mt-1">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {new Date(changeset.created_at).toLocaleString()}
-                </span>
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-              {changeset.changes.length} change{changeset.changes.length !== 1 ? 's' : ''}
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="text-xs">
+                {changeset.user?.username?.charAt(0).toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">
+              {changeset.user?.username || 'Unknown User'}
             </span>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent onClick={(e) => e.stopPropagation()}>
-        {changeset.description && (
-          <div className="mb-3 p-2 bg-muted rounded text-sm">{changeset.description}</div>
-        )}
-
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Changes:</span>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded(!expanded);
-              }}
+        </td>
+        <td className="px-4 py-3 text-sm">
+          {changeset.description || (
+            <span className="text-muted-foreground italic">No description</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-sm text-center">
+          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs">
+            {changeset.changes.length}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-sm">
+          {routeId ? (
+            <span className="text-muted-foreground">{routeId}</span>
+          ) : stopId ? (
+            <span className="text-muted-foreground">Stop: {stopId}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {new Date(changeset.created_at).toLocaleDateString()}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded(!expanded)}
+              title={expanded ? 'Hide details' : 'Show details'}
             >
               {expanded ? (
-                <>
-                  <ChevronUp className="w-4 h-4 mr-1" />
-                  Hide Details
-                </>
+                <ChevronUp className="w-4 h-4" />
               ) : (
-                <>
-                  <ChevronDown className="w-4 h-4 mr-1" />
-                  Show Details
-                </>
+                <ChevronDown className="w-4 h-4" />
               )}
             </Button>
-          </div>
-        </div>
-
-        {expanded && (
-          <div className="mb-4 border rounded-lg p-3 bg-muted/30">
-            <ChangesetHierarchy changes={changeset.changes} />
-          </div>
-        )}
-
-        {changeset.status === ChangesetStatus.PENDING && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReject(changeset.id);
-              }}
-              disabled={isProcessing}
-              className="flex-1"
-            >
-              <X className="w-4 h-4 mr-1" />
-              Reject
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={(e) => {
-                e.stopPropagation();
-                onApprove(changeset.id);
-              }}
-              disabled={isProcessing} 
-              className="flex-1"
-            >
-              <Check className="w-4 h-4 mr-1" />
-              Approve
-            </Button>
-          </div>
-        )}
-
-        {changeset.status === ChangesetStatus.APPROVED && changeset.reviewed_at && (
-          <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
-            <div className="flex items-center gap-1">
-              <Check className="w-3 h-3 text-green-600" />
-              Approved by {changeset.reviewer?.username || 'Unknown'} on{' '}
-              {new Date(changeset.reviewed_at).toLocaleString()}
-            </div>
-            {changeset.review_comment && (
-              <div className="mt-1 italic">"{changeset.review_comment}"</div>
+            {routeId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onViewRoute(changeset)}
+                title="View on route"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </Button>
+            )}
+            {changeset.status === ChangesetStatus.PENDING && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onReject(changeset.id)}
+                  disabled={isProcessing}
+                  className="text-muted-foreground hover:text-destructive"
+                  title="Reject"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onApprove(changeset.id)}
+                  disabled={isProcessing}
+                  className="text-muted-foreground hover:text-green-600"
+                  title="Approve"
+                >
+                  <Check className="w-4 h-4" />
+                </Button>
+              </>
             )}
           </div>
-        )}
-
-        {changeset.status === ChangesetStatus.REJECTED && changeset.reviewed_at && (
-          <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
-            <div className="flex items-center gap-1">
-              <X className="w-3 h-3 text-red-600" />
-              Rejected by {changeset.reviewer?.username || 'Unknown'} on{' '}
-              {new Date(changeset.reviewed_at).toLocaleString()}
+        </td>
+      </tr>
+      {expanded && (
+        <tr onClick={(e) => e.stopPropagation()}>
+          <td colSpan={6} className="px-4 py-3 bg-muted/30">
+            <div className="border rounded-lg p-3 bg-background">
+              <ChangesetHierarchy changes={changeset.changes} />
             </div>
-            {changeset.review_comment && (
-              <div className="mt-1 italic">"{changeset.review_comment}"</div>
+            {changeset.status === ChangesetStatus.APPROVED && changeset.reviewed_at && (
+              <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
+                <Check className="w-3 h-3 text-green-600" />
+                Approved by {changeset.reviewer?.username || 'Unknown'} on{' '}
+                {new Date(changeset.reviewed_at).toLocaleString()}
+                {changeset.review_comment && (
+                  <span className="ml-2 italic">"{changeset.review_comment}"</span>
+                )}
+              </div>
             )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            {changeset.status === ChangesetStatus.REJECTED && changeset.reviewed_at && (
+              <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
+                <X className="w-3 h-3 text-red-600" />
+                Rejected by {changeset.reviewer?.username || 'Unknown'} on{' '}
+                {new Date(changeset.reviewed_at).toLocaleString()}
+                {changeset.review_comment && (
+                  <span className="ml-2 italic">"{changeset.review_comment}"</span>
+                )}
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
-// Color palette matching ReviewMap
-const CHANGESET_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
-  '#0ea5e9', '#6366f1', '#a855f7', '#ec4899', '#8b5cf6',
-];
-
 export default function ReviewPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [changesets, setChangesets] = useState<Changeset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -254,6 +297,12 @@ export default function ReviewPage() {
     fetchChangesets(statusMap[activeTab]);
   }, [activeTab]);
 
+  const handleViewRoute = (changeset: Changeset) => {
+    const routeId = getRouteFromChangeset(changeset);
+    if (!routeId) return;
+    navigate(`/routes/${encodeURIComponent(routeId)}?changeset=${changeset.id}`);
+  };
+
   const handleApproveClick = (id: string) => {
     setSelectedDialogChangesetId(id);
     setComment('');
@@ -273,7 +322,6 @@ export default function ReviewPage() {
     try {
       await approveChangeset(selectedDialogChangesetId, comment || undefined);
       setApproveDialogOpen(false);
-      // Refresh the list
       fetchChangesets(ChangesetStatus.PENDING);
     } catch (err) {
       console.error('Failed to approve changeset:', err);
@@ -290,7 +338,6 @@ export default function ReviewPage() {
     try {
       await rejectChangeset(selectedDialogChangesetId, comment || undefined);
       setRejectDialogOpen(false);
-      // Refresh the list
       fetchChangesets(ChangesetStatus.PENDING);
     } catch (err) {
       console.error('Failed to reject changeset:', err);
@@ -376,22 +423,37 @@ export default function ReviewPage() {
               <p>No {activeTab} changesets</p>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(100vh-400px)]">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pr-4">
-                {changesets.map((changeset) => (
-                  <ChangesetCard
-                    key={changeset.id}
-                    changeset={changeset}
-                    onApprove={handleApproveClick}
-                    onReject={handleRejectClick}
-                    isProcessing={processingId === changeset.id}
-                    isSelected={selectedChangesetId === changeset.id}
-                    onSelect={setSelectedChangesetId}
-                    color={changesetColorMap[changeset.id]}
-                  />
-                ))}
+            <div className="border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-medium">User</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium">Description</th>
+                      <th className="px-4 py-3 text-center text-sm font-medium">Changes</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium">Routes</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium">Submitted</th>
+                      <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {changesets.map((changeset) => (
+                      <ChangesetRow
+                        key={changeset.id}
+                        changeset={changeset}
+                        onApprove={handleApproveClick}
+                        onReject={handleRejectClick}
+                        onViewRoute={handleViewRoute}
+                        isProcessing={processingId === changeset.id}
+                        isSelected={selectedChangesetId === changeset.id}
+                        onSelect={setSelectedChangesetId}
+                        color={changesetColorMap[changeset.id]}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </ScrollArea>
+            </div>
           )}
         </TabsContent>
       </Tabs>

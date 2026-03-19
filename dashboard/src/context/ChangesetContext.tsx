@@ -1,32 +1,31 @@
+import {
+  canDirectEdit,
+  Changeset,
+  deleteChangeset as deleteChangesetApi,
+  getOrCreateDraft,
+  isContributor,
+  removeChange as removeChangeApi,
+  submitChangeset as submitChangesetApi,
+} from '@/services/changesets';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
-import {
-  Changeset,
-  Change,
-  getOrCreateDraft,
-  submitChangeset as submitChangesetApi,
-  removeChange as removeChangeApi,
-  deleteChangeset as deleteChangesetApi,
-  isContributor,
-  canDirectEdit,
-} from '@/services/changesets';
 
 interface ChangesetContextType {
   // Current draft changeset
   draftChangeset: Changeset | null;
   isLoading: boolean;
   error: string | null;
-  
+
   // User role helpers
   isContributorUser: boolean;
   canDirectEditUser: boolean;
-  
+
   // Actions
   refreshDraft: () => Promise<void>;
   submitChangeset: (description: string) => Promise<void>;
   removeChange: (changeId: string) => Promise<void>;
   discardDraft: () => Promise<void>;
-  
+
   // Computed values
   hasChanges: boolean;
   changeCount: number;
@@ -68,40 +67,46 @@ export const ChangesetProvider = ({ children }: ChangesetProviderProps) => {
     }
   }, [isAuthenticated, isContributorUser]);
 
-  const submitChangeset = useCallback(async (description: string) => {
-    if (!draftChangeset) {
-      throw new Error('No draft changeset to submit');
-    }
+  const submitChangeset = useCallback(
+    async (description: string) => {
+      if (!draftChangeset) {
+        throw new Error('No draft changeset to submit');
+      }
 
-    setIsLoading(true);
-    setError(null);
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      await submitChangesetApi(draftChangeset.id, description);
-      // Refresh to get a new draft
-      await refreshDraft();
-    } catch (err) {
-      console.error('Failed to submit changeset:', err);
-      setError('Failed to submit changes for review');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [draftChangeset, refreshDraft]);
+      try {
+        await submitChangesetApi(draftChangeset.id, description);
+        // Refresh to get a new draft
+        await refreshDraft();
+      } catch (err) {
+        console.error('Failed to submit changeset:', err);
+        setError('Failed to submit changes for review');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [draftChangeset, refreshDraft]
+  );
 
-  const removeChange = useCallback(async (changeId: string) => {
-    setError(null);
+  const removeChange = useCallback(
+    async (changeId: string) => {
+      setError(null);
 
-    try {
-      await removeChangeApi(changeId);
-      // Refresh the draft to update the changes list
-      await refreshDraft();
-    } catch (err) {
-      console.error('Failed to remove change:', err);
-      setError('Failed to remove change');
-      throw err;
-    }
-  }, [refreshDraft]);
+      try {
+        await removeChangeApi(changeId);
+        // Refresh the draft to update the changes list
+        await refreshDraft();
+      } catch (err) {
+        console.error('Failed to remove change:', err);
+        setError('Failed to remove change');
+        throw err;
+      }
+    },
+    [refreshDraft]
+  );
 
   const discardDraft = useCallback(async () => {
     if (!draftChangeset) return;

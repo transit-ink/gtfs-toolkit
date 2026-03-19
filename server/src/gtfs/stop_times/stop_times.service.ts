@@ -33,6 +33,7 @@ export interface BulkUpdateStopTimeDto {
 
 export interface BulkUpdateStopTimesDto {
   updates: BulkUpdateStopTimeDto[];
+  routeId?: string; // Optional route context for changeset tracking
 }
 
 @Injectable()

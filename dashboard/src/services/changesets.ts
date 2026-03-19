@@ -58,6 +58,8 @@ export interface Changeset {
   reviewed_at: string | null;
   review_comment: string | null;
   changes: Change[];
+  related_route_id: string | null;
+  related_stop_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +80,8 @@ export interface ChangesetFilterParams {
   status?: ChangesetStatus;
   user_id?: string;
   entity_type?: EntityType;
+  related_route_id?: string;
+  related_stop_id?: string;
 }
 
 // Get or create the current user's draft changeset

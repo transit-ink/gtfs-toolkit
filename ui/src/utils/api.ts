@@ -591,3 +591,29 @@ export function useStopsBulk(ids: string[]) {
     enabled: ids.length > 0,
   });
 }
+
+// Route contributors
+export interface RouteContributor {
+  userId: string;
+  username: string;
+  changeCount: number;
+}
+
+async function getRouteContributorsApi(
+  routeId: string
+): Promise<AxiosResponse<RouteContributor[]>> {
+  return rateLimiter.execute(() =>
+    axios.get<RouteContributor[]>(`${BACKEND_HOST}/changesets/contributors/${encodeURIComponent(routeId)}`)
+  );
+}
+
+export function useRouteContributors(routeId: string | undefined) {
+  return useQuery({
+    queryKey: ['routeContributors', routeId],
+    queryFn: () => getRouteContributorsApi(routeId!).then((r) => r.data),
+    enabled: !!routeId,
+    staleTime: STALE_TIME_MS,
+    // Silently fail - contributors are not critical
+    retry: false,
+  });
+}

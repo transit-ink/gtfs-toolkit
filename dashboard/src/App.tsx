@@ -11,6 +11,7 @@ import Documentation from './pages/docs';
 import GroupDetails from './pages/groupDetails';
 import Groups from './pages/groups';
 import Login from './pages/login';
+import MyChangesPage from './pages/myChanges';
 import ReviewPage from './pages/review';
 import RouteDetails from './pages/routeDetails';
 import RoutesPage from './pages/routes';
@@ -42,6 +43,7 @@ function AppContent() {
           <Route path="groups/:groupId" element={<GroupDetails />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="review" element={<ReviewPage />} />
+          <Route path="my-changes" element={<MyChangesPage />} />
           <Route path="trips" element={<ComingSoon title="Trips" />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="account" element={<AccountPage />} />
